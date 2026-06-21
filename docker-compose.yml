@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeromind_postgres
+    environment:
+      POSTGRES_DB: aeromind
+      POSTGRES_USER: aeromind_user
+      POSTGRES_PASSWORD: aeromind_password
+      POSTGRES_INITDB_ARGS: "-c max_connections=100"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeromind_user -d aeromind"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - aeromind_network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aeromind_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: aeromind
+      DB_USER: aeromind_user
+      DB_PASSWORD: aeromind_password
+      PORT: 8848
+    ports:
+      - "8848:8848"
+    networks:
+      - aeromind_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  aeromind_network:
+    driver: bridge

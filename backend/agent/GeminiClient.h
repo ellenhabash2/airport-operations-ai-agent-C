@@ -1,11 +1,17 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
+// Minimal client for the Google Gemini generateContent REST API.
+// Reads the API key from the GEMINI_API_KEY environment variable.
 class GeminiClient
 {
 public:
-    virtual ~GeminiClient() = default;
+    GeminiClient();
 
-    // TODO(ai-phase): Call Gemini with configured credentials in a future phase.
-    virtual std::string generate(const std::string &prompt) = 0;
+    // Sends a text question to Gemini and returns the text answer.
+    // On error, returns a string starting with "ERROR:".
+    std::string ask(const std::string &question);
+
+private:
+    std::string api_key_;
 };

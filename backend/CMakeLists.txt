@@ -83,6 +83,8 @@ set(AEROMIND_SOURCES
     repositories/weather_repository.cpp
     controllers/tools_test_controller.cpp
     tools/tools.cpp
+    agent/GeminiClient.cpp
+    controllers/gemini_test_controller.cpp
     utils/json_utils.cpp
 )
 
@@ -128,4 +130,5 @@ endif()
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
+
 

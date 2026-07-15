@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16-alpine
     container_name: aeromind_postgres
@@ -37,6 +37,7 @@ services:
       DB_USER: aeromind_user
       DB_PASSWORD: aeromind_password
       PORT: 8848
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     ports:
       - "8848:8848"
     networks:
@@ -54,3 +55,4 @@ volumes:
 networks:
   aeromind_network:
     driver: bridge
+

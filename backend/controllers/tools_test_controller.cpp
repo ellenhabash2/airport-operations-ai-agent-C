@@ -10,9 +10,16 @@ void ToolsTestController::testTools(const HttpRequestPtr &req, std::function<voi
         Json::Value response;
         response["status"] = "success";
 
-        // Run each tool and show its output
+        // Run the read tools and show their output.
+        // Action tools (resolve_incident, create_incident) are not run here
+        // because they modify data.
         response["tools"]["find_delayed_flights"] = Tools::find_delayed_flights();
         response["tools"]["get_active_incidents"] = Tools::get_active_incidents();
+        response["tools"]["get_all_flights_count"] = Tools::get_all_flights().size();
+        response["tools"]["get_flight_details_id_1"] = Tools::get_flight_details("1");
+        response["tools"]["get_available_gates"] = Tools::get_available_gates();
+        response["tools"]["get_runway_status"] = Tools::get_runway_status();
+        response["tools"]["get_latest_weather"] = Tools::get_latest_weather();
 
         auto http_response = HttpResponse::newHttpJsonResponse(response);
         http_response->setStatusCode(k200OK);

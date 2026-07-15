@@ -1,11 +1,16 @@
-FROM ubuntu:24.04 as builder
+﻿# syntax=docker/dockerfile:1
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
+##############################################################################
+# Build stage
+##############################################################################
+FROM ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
-    curl \
+    ca-certificates \
+    pkg-config \
     libpq-dev \
     libpqxx-dev \
     libjsoncpp-dev \
@@ -13,47 +18,44 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libuv1-dev \
     libpcre3-dev \
-    pkg-config \
-    postgresql-client \
+    libc-ares-dev \
+    uuid-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-
-# Copy the entire project
 COPY . /build/
 
-# Build the application
-RUN mkdir -p build && \
-    cd build && \
-    cmake .. && \
-    make -j$(nproc) && \
-    cmake --install .
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build
 
+RUN mkdir -p /runtime-deps \
+    && ldd /usr/local/bin/aeromind_backend \
+       | awk '/=> \// { print $3 }' \
+       | sort -u \
+       | xargs -I '{}' cp -L '{}' /runtime-deps/
+
+##############################################################################
 # Runtime stage
-FROM ubuntu:24.04
+##############################################################################
+FROM ubuntu:24.04 AS runtime
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libpq5 \
-    libjsoncpp1 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=builder /usr/local/bin/aeromind_backend /app/aeromind_backend
+COPY --from=builder /runtime-deps/ /usr/local/lib/aeromind/
+
+RUN echo "/usr/local/lib/aeromind" > /etc/ld.so.conf.d/aeromind.conf \
+    && ldconfig \
+    && mkdir -p /app/logs
+
 WORKDIR /app
-
-# Copy built binary and libraries from builder
-COPY --from=builder /usr/local/bin/aeromind_backend /app/
-COPY --from=builder /usr/local/lib /usr/local/lib
-
-# Create logs directory
-RUN mkdir -p /app/logs && ldconfig
-
-# Expose port 8848
 EXPOSE 8848
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8848/health || exit 1
 
-# Run the application
 CMD ["./aeromind_backend"]

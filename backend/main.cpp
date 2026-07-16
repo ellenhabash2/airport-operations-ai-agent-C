@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <thread>
 #include <filesystem>
+#include <cstddef>
 #include "database/database_manager.h"
 
 namespace
@@ -29,7 +30,11 @@ int main()
             "postgresql://" + db_user + ":" + db_password + "@" +
             db_host + ":" + db_port + "/" + db_name;
 
-        DatabaseManager::getInstance().initialize(connection_string);
+        // Pool size: enough for the IO threads without exhausting PostgreSQL.
+        const std::size_t pool_size =
+            static_cast<std::size_t>(std::stoi(envOr("DB_POOL_SIZE", "10")));
+
+        DatabaseManager::getInstance().initialize(connection_string, pool_size);
 
         if (!DatabaseManager::getInstance().isConnected())
         {

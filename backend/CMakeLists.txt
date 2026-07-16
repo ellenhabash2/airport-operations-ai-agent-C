@@ -7,13 +7,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 include(FetchContent)
 
-# This service does not read Drogon YAML config files. Leaving Drogon's
-# optional YAML support enabled can make local builds fail when only the
-# yaml-cpp runtime library is installed without development headers.
 set(BUILD_YAML_CONFIG OFF CACHE BOOL "Build Drogon YAML config support" FORCE)
 
-# Find or fetch Drogon. When a previous local dependency checkout exists, prefer
-# it before attempting a network fetch so offline development environments work.
 find_package(Drogon CONFIG QUIET)
 if(NOT Drogon_FOUND)
     if(EXISTS "${CMAKE_SOURCE_DIR}/build/_deps/drogon-src/CMakeLists.txt")
@@ -28,7 +23,6 @@ if(NOT Drogon_FOUND)
     FetchContent_MakeAvailable(drogon)
 endif()
 
-# Find or fetch jsoncpp.
 find_package(jsoncpp CONFIG QUIET)
 if(NOT jsoncpp_FOUND)
     if(EXISTS "${CMAKE_SOURCE_DIR}/build/_deps/jsoncpp-src/CMakeLists.txt")
@@ -46,7 +40,6 @@ endif()
 find_package(PostgreSQL REQUIRED)
 find_package(PkgConfig REQUIRED)
 
-# Find or fetch libpqxx.
 find_package(pqxx CONFIG QUIET)
 if(NOT pqxx_FOUND)
     pkg_check_modules(PQXX QUIET IMPORTED_TARGET libpqxx)
@@ -63,6 +56,26 @@ if(NOT pqxx_FOUND)
         FetchContent_MakeAvailable(pqxx)
     endif()
 endif()
+
+# jwt-cpp (header-only) for authentication tokens.
+set(JWT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+find_package(jwt-cpp CONFIG QUIET)
+if(NOT jwt-cpp_FOUND)
+    FetchContent_Declare(
+        jwt-cpp
+        GIT_REPOSITORY https://github.com/Thalhammer/jwt-cpp.git
+        GIT_TAG 08bcf77a687fb06e34138e9e9fa12a4ecbe12332
+    )
+    FetchContent_MakeAvailable(jwt-cpp)
+endif()
+
+# Bcrypt.cpp for password hashing
+FetchContent_Declare(
+    bcrypt
+    GIT_REPOSITORY https://github.com/hilch/Bcrypt.cpp.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(bcrypt)
 
 # Source files
 set(AEROMIND_SOURCES
@@ -81,26 +94,30 @@ set(AEROMIND_SOURCES
     repositories/runway_repository.cpp
     repositories/incident_repository.cpp
     repositories/weather_repository.cpp
+    repositories/user_repository.cpp
     controllers/tools_test_controller.cpp
     tools/tools.cpp
     agent/GeminiClient.cpp
     controllers/gemini_test_controller.cpp
+    security/PasswordHasher.cpp
+    security/JwtService.cpp
+    controllers/jwt_test_controller.cpp
+    controllers/hash_test_controller.cpp
     utils/json_utils.cpp
 )
 
-# Create executable
 add_executable(aeromind_backend ${AEROMIND_SOURCES})
 
-# Include directories
 target_include_directories(aeromind_backend PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PostgreSQL_INCLUDE_DIR}
 )
 
-# Link libraries
 target_link_libraries(aeromind_backend PRIVATE
     Drogon::Drogon
     ${PostgreSQL_LIBRARIES}
+    jwt-cpp::jwt-cpp
+    bcrypt
 )
 
 if(TARGET Jsoncpp_lib)
@@ -119,16 +136,17 @@ else()
     target_link_libraries(aeromind_backend PRIVATE PkgConfig::PQXX)
 endif()
 
-# Add optimization flags
 if(CMAKE_BUILD_TYPE MATCHES Release)
     target_compile_options(aeromind_backend PRIVATE -O3)
 else()
     target_compile_options(aeromind_backend PRIVATE -g)
 endif()
 
-# Install target for staging and packaging
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
+
+
+
 
 

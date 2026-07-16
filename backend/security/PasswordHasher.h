@@ -1,14 +1,13 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
+// Wraps bcrypt password hashing for the auth module.
 class PasswordHasher
 {
 public:
-    virtual ~PasswordHasher() = default;
+    // Hashes a plaintext password and returns the bcrypt hash string.
+    static std::string hash(const std::string &password);
 
-    // TODO(auth-phase): Hash passwords with a production password hashing algorithm.
-    virtual std::string hashPassword(const std::string &password) const = 0;
-
-    // TODO(auth-phase): Verify submitted credentials against stored password hashes.
-    virtual bool verifyPassword(const std::string &password, const std::string &hash) const = 0;
+    // Returns true if the plaintext password matches the stored hash.
+    static bool verify(const std::string &password, const std::string &hash);
 };

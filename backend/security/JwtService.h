@@ -1,14 +1,19 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
+// Creates and verifies JWT tokens for user sessions.
 class JwtService
 {
 public:
-    virtual ~JwtService() = default;
+    // Generates a signed JWT for the given user. Token expires in 24 hours.
+    static std::string generateToken(const std::string &userId, const std::string &email);
 
-    // TODO(auth-phase): Generate signed JWTs after authentication is implemented.
-    virtual std::string issueToken(int user_id, const std::string &role) const = 0;
+    // Verifies a token. Returns true if valid and not expired.
+    static bool verifyToken(const std::string &token);
 
-    // TODO(auth-phase): Verify signed JWTs for protected API routes.
-    virtual bool verifyToken(const std::string &token) const = 0;
+    // Extracts the user id from a valid token, or "" if invalid.
+    static std::string getUserId(const std::string &token);
+
+private:
+    static std::string getSecret();
 };

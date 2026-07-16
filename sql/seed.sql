@@ -1,8 +1,12 @@
 -- AeroMind Airport Operations Seed Data
 
+-- Demo accounts. Passwords are documented in the README.
+--   ops.admin@aeromind.local    / admin123
+--   duty.manager@aeromind.local / manager123
+-- Real bcrypt ($2b$, 10 rounds) hashes, verified against the Bcrypt.cpp build used by the backend.
 INSERT INTO users (username, email, password_hash, role) VALUES
-('ops_admin', 'ops.admin@aeromind.local', 'foundation-placeholder-hash', 'admin'),
-('duty_manager', 'duty.manager@aeromind.local', 'foundation-placeholder-hash', 'operator');
+('ops_admin', 'ops.admin@aeromind.local', '$2b$10$hydVDVhjwlRi44TX1yzHYOFcnIIlCAvTqTf3PySiBJgsTrgrFpLk.', 'admin'),
+('duty_manager', 'duty.manager@aeromind.local', '$2b$10$1Hak1Lx2UG/Yi4oodB/Buepv.14kx2CpLBCqL5HDB0.PbLhQcxagO', 'operator');
 
 INSERT INTO airlines (name, iata_code, icao_code, country) VALUES
 ('British Airways', 'BA', 'BAW', 'United Kingdom'),
@@ -77,19 +81,46 @@ INSERT INTO flights (
     arrival_time,
     status
 )
+-- Flights are anchored to the current time so the agent always sees a live
+-- operational picture: roughly 12 hours of history and 33 hours ahead.
+-- Status is derived from the schedule instead of a fixed cycle, so a LANDED
+-- flight can never sit in the future.
 SELECT
-    (ARRAY['BA', 'LH', 'LY', 'DL', 'EK'])[(gs - 1) % 5 + 1] ||
-        (200 + gs)::text AS flight_number,
-    ((gs - 1) % 5) + 1 AS airline_id,
-    ((((gs - 1) % 5) * 5) + (((gs - 1) / 5) % 5) + 1) AS aircraft_id,
-    ((gs - 1) % 36) + 1 AS gate_id,
-    ((gs - 1) % 3) + 1 AS runway_id,
-    (ARRAY['JFK', 'LHR', 'FRA', 'TLV', 'DXB', 'AMS', 'CDG', 'MAD', 'ATH', 'ZRH'])[(gs - 1) % 10 + 1] AS origin,
-    (ARRAY['LAX', 'BOS', 'ORD', 'MIA', 'SFO', 'YYZ', 'IST', 'FCO', 'VIE', 'CPH'])[(gs - 1) % 10 + 1] AS destination,
-    TIMESTAMP '2026-06-20 05:00:00' + (gs * INTERVAL '18 minutes') AS departure_time,
-    TIMESTAMP '2026-06-20 05:00:00' + (gs * INTERVAL '18 minutes') + (((gs % 7) + 2) * INTERVAL '45 minutes') AS arrival_time,
-    (ARRAY['SCHEDULED', 'BOARDING', 'IN_FLIGHT', 'DELAYED', 'LANDED', 'SCHEDULED'])[(gs - 1) % 6 + 1] AS status
-FROM generate_series(1, 150) gs;
+    flight_number,
+    airline_id,
+    aircraft_id,
+    gate_id,
+    runway_id,
+    origin,
+    destination,
+    departure_time,
+    arrival_time,
+    CASE
+        WHEN gs % 13 = 0 AND departure_time > LOCALTIMESTAMP                      THEN 'CANCELLED'
+        WHEN gs % 7  = 0 AND departure_time > LOCALTIMESTAMP - INTERVAL '3 hours' THEN 'DELAYED'
+        WHEN arrival_time   < LOCALTIMESTAMP                                      THEN 'LANDED'
+        WHEN departure_time < LOCALTIMESTAMP                                      THEN 'IN_FLIGHT'
+        WHEN departure_time < LOCALTIMESTAMP + INTERVAL '45 minutes'              THEN 'BOARDING'
+        ELSE 'SCHEDULED'
+    END AS status
+FROM (
+    SELECT
+        gs,
+        (ARRAY['BA', 'LH', 'LY', 'DL', 'EK'])[(gs - 1) % 5 + 1] ||
+            (200 + gs)::text AS flight_number,
+        ((gs - 1) % 5) + 1 AS airline_id,
+        ((((gs - 1) % 5) * 5) + (((gs - 1) / 5) % 5) + 1) AS aircraft_id,
+        ((gs - 1) % 36) + 1 AS gate_id,
+        ((gs - 1) % 3) + 1 AS runway_id,
+        (ARRAY['JFK', 'LHR', 'FRA', 'TLV', 'DXB', 'AMS', 'CDG', 'MAD', 'ATH', 'ZRH'])[(gs - 1) % 10 + 1] AS origin,
+        (ARRAY['LAX', 'BOS', 'ORD', 'MIA', 'SFO', 'YYZ', 'IST', 'FCO', 'VIE', 'CPH'])[(gs - 1) % 10 + 1] AS destination,
+        date_trunc('hour', LOCALTIMESTAMP) - INTERVAL '12 hours'
+            + (gs * INTERVAL '18 minutes') AS departure_time,
+        date_trunc('hour', LOCALTIMESTAMP) - INTERVAL '12 hours'
+            + (gs * INTERVAL '18 minutes')
+            + (((gs % 7) + 2) * INTERVAL '45 minutes') AS arrival_time
+    FROM generate_series(1, 150) gs
+) f;
 
 INSERT INTO crew (full_name, role, employee_code, availability_status) VALUES
 ('Captain Amelia Brooks', 'Captain', 'CRW-1001', 'ON_DUTY'),

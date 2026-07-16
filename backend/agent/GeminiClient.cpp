@@ -97,3 +97,81 @@ std::string GeminiClient::ask(const std::string &question)
 
     return "ERROR: provider unavailable after retries: " + lastError;
 }
+
+// ---- Tool-calling chat completion ----
+Json::Value GeminiClient::chatWithTools(const Json::Value &messages, const Json::Value &tools)
+{
+    Json::Value result;
+
+    if (api_key_.empty())
+    {
+        result["error"] = "GROQ_API_KEY is not set";
+        return result;
+    }
+
+    Json::Value body;
+    body["model"] = "llama-3.3-70b-versatile";
+    body["messages"] = messages;
+    if (tools.isArray() && !tools.empty())
+    {
+        body["tools"] = tools;
+        body["tool_choice"] = "auto";
+    }
+
+    Json::StreamWriterBuilder writer;
+    writer["indentation"] = "";
+    std::string bodyStr = Json::writeString(writer, body);
+
+    auto client = drogon::HttpClient::newHttpClient(
+        "https://api.groq.com", nullptr, false, false);
+
+    for (int attempt = 1; attempt <= 4; ++attempt)
+    {
+        auto req = drogon::HttpRequest::newHttpRequest();
+        req->setMethod(drogon::Post);
+        req->setPath("/openai/v1/chat/completions");
+        req->addHeader("Authorization", "Bearer " + api_key_);
+        req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+        req->setBody(bodyStr);
+
+        auto [res, response] = client->sendRequest(req, 30.0);
+
+        if (res != drogon::ReqResult::Ok || !response)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(800));
+            continue;
+        }
+
+        std::string respBody(response->getBody());
+        int httpStatus = response->getStatusCode();
+
+        if (httpStatus == 503 || httpStatus == 429)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000 * attempt));
+            continue;
+        }
+
+        Json::Value parsed;
+        Json::CharReaderBuilder reader;
+        std::string errs;
+        std::unique_ptr<Json::CharReader> jsonReader(reader.newCharReader());
+
+        if (!jsonReader->parse(respBody.c_str(), respBody.c_str() + respBody.size(), &parsed, &errs))
+        {
+            result["error"] = "could not parse response";
+            return result;
+        }
+
+        if (httpStatus != 200)
+        {
+            result["error"] = "HTTP " + std::to_string(httpStatus);
+            result["raw"] = parsed;
+            return result;
+        }
+
+        return parsed;
+    }
+
+    result["error"] = "provider unavailable after retries";
+    return result;
+}

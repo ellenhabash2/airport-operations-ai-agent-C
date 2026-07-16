@@ -1,11 +1,11 @@
-﻿services:
+services:
   postgres:
     image: postgres:16-alpine
     container_name: aeromind_postgres
     environment:
-      POSTGRES_DB: aeromind
-      POSTGRES_USER: aeromind_user
-      POSTGRES_PASSWORD: aeromind_password
+      POSTGRES_DB: ${POSTGRES_DB:-aeromind}
+      POSTGRES_USER: ${POSTGRES_USER:-aeromind_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aeromind_password}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aeromind_user -d aeromind"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aeromind_user} -d ${POSTGRES_DB:-aeromind}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -33,13 +33,13 @@
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: aeromind
-      DB_USER: aeromind_user
-      DB_PASSWORD: aeromind_password
+      DB_NAME: ${POSTGRES_DB:-aeromind}
+      DB_USER: ${POSTGRES_USER:-aeromind_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-aeromind_password}
       PORT: 8848
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GROQ_API_KEY: ${GROQ_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
+      # Fail fast with a clear message instead of starting with an empty key/secret.
+      GROQ_API_KEY: ${GROQ_API_KEY:?GROQ_API_KEY is required. Copy .env.example to .env and set it.}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env and set it.}
     ports:
       - "8848:8848"
     networks:
@@ -57,6 +57,3 @@ volumes:
 networks:
   aeromind_network:
     driver: bridge
-
-
-

@@ -1,16 +1,21 @@
 ﻿#pragma once
 #include <string>
+#include <json/json.h>
 
-// Minimal client for the Google Gemini generateContent REST API.
-// Reads the API key from the GEMINI_API_KEY environment variable.
+// AI client backed by Groq (OpenAI-compatible API).
 class GeminiClient
 {
 public:
     GeminiClient();
 
-    // Sends a text question to Gemini and returns the text answer.
-    // On error, returns a string starting with "ERROR:".
+    // Simple prompt -> text answer (used for quick tests).
     std::string ask(const std::string &question);
+
+    // Full chat completion with tool support.
+    // 'messages' is the OpenAI-format conversation array.
+    // 'tools' is the OpenAI-format tools array (may be empty).
+    // Returns the raw parsed JSON response from the provider.
+    Json::Value chatWithTools(const Json::Value &messages, const Json::Value &tools);
 
 private:
     std::string api_key_;

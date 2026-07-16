@@ -1,12 +1,16 @@
-#pragma once
+﻿#pragma once
+#include <json/json.h>
 #include <string>
-#include <vector>
 
+// Bridges the agent's AI model with the concrete Tools.
 class ToolRegistry
 {
 public:
-    virtual ~ToolRegistry() = default;
+    // Returns the tool definitions in OpenAI "tools" format,
+    // so the model knows which tools exist and how to call them.
+    static Json::Value getToolDefinitions();
 
-    // TODO(ai-phase): Register airport operations tools for agent function calling.
-    virtual std::vector<std::string> listTools() const = 0;
+    // Executes a tool by name with the given JSON arguments,
+    // and returns the tool's result as JSON.
+    static Json::Value executeTool(const std::string &name, const Json::Value &args);
 };

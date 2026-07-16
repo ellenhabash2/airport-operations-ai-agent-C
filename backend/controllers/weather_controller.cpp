@@ -7,7 +7,7 @@ void WeatherController::getWeather(const HttpRequestPtr &req, std::function<void
 {
     try
     {
-        auto weather = WeatherRepository::getLatestWeather();
+        auto weather = WeatherRepository::getRecentWeather();
         
         Json::Value response;
         response["status"] = "success";

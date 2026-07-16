@@ -1,9 +1,27 @@
-﻿#include "incident_repository.h"
+#include "incident_repository.h"
 #include "database/database_manager.h"
 #include <iostream>
 #include <pqxx/pqxx>
 
-Json::Value IncidentRepository::getAllIncidents()
+namespace
+{
+constexpr const char *kIncidentColumns =
+    "SELECT id, title, description, severity, location, status, created_at FROM incidents ";
+
+Json::Value incidentRowToJson(const pqxx::row &row)
+{
+    Json::Value incident;
+    incident["id"] = row["id"].c_str();
+    incident["title"] = row["title"].c_str();
+    incident["description"] = row["description"].c_str();
+    incident["severity"] = row["severity"].c_str();
+    incident["location"] = row["location"].is_null() ? "" : row["location"].c_str();
+    incident["status"] = row["status"].c_str();
+    incident["created_at"] = row["created_at"].c_str();
+    return incident;
+}
+
+Json::Value queryIncidents(const std::string &whereClause)
 {
     Json::Value incidents(Json::arrayValue);
 
@@ -12,21 +30,12 @@ Json::Value IncidentRepository::getAllIncidents()
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
 
-        pqxx::result res = txn.exec("SELECT id, title, description, severity, location, status, created_at FROM incidents ORDER BY created_at DESC LIMIT 50");
+        pqxx::result res = txn.exec(std::string(kIncidentColumns) + whereClause +
+                                    "ORDER BY created_at DESC LIMIT 50");
 
-        int index = 0;
         for (auto row : res)
         {
-            Json::Value incident;
-            incident["id"] = row["id"].c_str();
-            incident["title"] = row["title"].c_str();
-            incident["description"] = row["description"].c_str();
-            incident["severity"] = row["severity"].c_str();
-            incident["location"] = row["location"].is_null() ? "" : row["location"].c_str();
-            incident["status"] = row["status"].c_str();
-            incident["created_at"] = row["created_at"].c_str();
-
-            incidents[index++] = incident;
+            incidents.append(incidentRowToJson(row));
         }
 
         txn.commit();
@@ -38,6 +47,17 @@ Json::Value IncidentRepository::getAllIncidents()
     }
 
     return incidents;
+}
+}
+
+Json::Value IncidentRepository::getAllIncidents()
+{
+    return queryIncidents("");
+}
+
+Json::Value IncidentRepository::getActiveIncidents()
+{
+    return queryIncidents("WHERE status <> 'RESOLVED' ");
 }
 
 Json::Value IncidentRepository::createIncident(const std::string &title, const std::string &description,

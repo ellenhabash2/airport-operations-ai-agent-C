@@ -5,6 +5,8 @@ cmake-build-*/
 .env.*.local
 .DS_Store
 *.log
+logs/*
+!logs/.gitkeep
 *.swp
 *.swo
 *~
@@ -21,3 +23,8 @@ dist/
 out/
 bin/
 obj/
+q.json
+q.json
+q2.json
+.vs/
+*.vsidx

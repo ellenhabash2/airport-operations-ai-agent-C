@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 project(aeromind_backend CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -73,7 +73,7 @@ endif()
 FetchContent_Declare(
     bcrypt
     GIT_REPOSITORY https://github.com/hilch/Bcrypt.cpp.git
-    GIT_TAG master
+    GIT_TAG 0d18b6a99e8c57627910db4ef9a7706c009b12ad
 )
 FetchContent_MakeAvailable(bcrypt)
 

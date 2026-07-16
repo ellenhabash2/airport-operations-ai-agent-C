@@ -94,6 +94,7 @@ set(AEROMIND_SOURCES
     repositories/runway_repository.cpp
     repositories/incident_repository.cpp
     repositories/weather_repository.cpp
+    repositories/user_repository.cpp
     controllers/tools_test_controller.cpp
     tools/tools.cpp
     agent/GeminiClient.cpp
@@ -144,6 +145,7 @@ endif()
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
+
 
 
 

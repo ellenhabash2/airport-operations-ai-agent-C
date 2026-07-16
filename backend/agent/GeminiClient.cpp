@@ -8,7 +8,8 @@
 
 GeminiClient::GeminiClient()
 {
-    const char *key = std::getenv("GEMINI_API_KEY");
+    // Now backed by Groq (OpenAI-compatible API).
+    const char *key = std::getenv("GROQ_API_KEY");
     api_key_ = key ? key : "";
 }
 
@@ -16,42 +17,42 @@ std::string GeminiClient::ask(const std::string &question)
 {
     if (api_key_.empty())
     {
-        return "ERROR: GEMINI_API_KEY is not set";
+        return "ERROR: GROQ_API_KEY is not set";
     }
 
+    // Build request body in OpenAI chat format:
+    // {"model": "...", "messages": [{"role": "user", "content": question}]}
     Json::Value body;
-    Json::Value part;
-    part["text"] = question;
-    Json::Value content;
-    content["parts"].append(part);
-    body["contents"].append(content);
+    body["model"] = "llama-3.3-70b-versatile";
+    Json::Value message;
+    message["role"] = "user";
+    message["content"] = question;
+    body["messages"].append(message);
 
     Json::StreamWriterBuilder writer;
     writer["indentation"] = "";
     std::string bodyStr = Json::writeString(writer, body);
 
     auto client = drogon::HttpClient::newHttpClient(
-        "https://generativelanguage.googleapis.com",
+        "https://api.groq.com",
         nullptr, false, false);
 
     std::string lastError;
 
-    // Retry up to 4 times on transient 503 (high demand) errors.
     for (int attempt = 1; attempt <= 4; ++attempt)
     {
         auto req = drogon::HttpRequest::newHttpRequest();
         req->setMethod(drogon::Post);
-        req->setPath("/v1beta/models/gemini-2.0-flash-lite:generateContent");
-        req->setParameter("key", api_key_);
+        req->setPath("/openai/v1/chat/completions");
+        req->addHeader("Authorization", "Bearer " + api_key_);
         req->setContentTypeCode(drogon::CT_APPLICATION_JSON);
         req->setBody(bodyStr);
-        req->setPathEncode(false);
 
         auto [result, response] = client->sendRequest(req, 30.0);
 
         if (result != drogon::ReqResult::Ok || !response)
         {
-            lastError = "request failed, result code = " + std::to_string(static_cast<int>(result));
+            lastError = "network error";
             std::this_thread::sleep_for(std::chrono::milliseconds(800));
             continue;
         }
@@ -59,10 +60,9 @@ std::string GeminiClient::ask(const std::string &question)
         std::string respBody(response->getBody());
         int httpStatus = response->getStatusCode();
 
-        // 503 = temporary high demand: wait and retry.
-        if (httpStatus == 503)
+        if (httpStatus == 503 || httpStatus == 429)
         {
-            lastError = "HTTP 503 (high demand), body: " + respBody;
+            lastError = "HTTP " + std::to_string(httpStatus) + ": " + respBody;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000 * attempt));
             continue;
         }
@@ -79,22 +79,21 @@ std::string GeminiClient::ask(const std::string &question)
 
         if (!jsonReader->parse(respBody.c_str(), respBody.c_str() + respBody.size(), &parsed, &errs))
         {
-            return "ERROR: parse failed, body: " + respBody;
+            return "ERROR: could not parse response";
         }
 
-        if (parsed.isMember("candidates") && parsed["candidates"].isArray() && !parsed["candidates"].empty())
+        // OpenAI-format response: choices[0].message.content
+        if (parsed.isMember("choices") && parsed["choices"].isArray() && !parsed["choices"].empty())
         {
-            const Json::Value &cand = parsed["candidates"][0];
-            if (cand.isMember("content") && cand["content"].isMember("parts") &&
-                cand["content"]["parts"].isArray() && !cand["content"]["parts"].empty())
+            const Json::Value &choice = parsed["choices"][0];
+            if (choice.isMember("message") && choice["message"].isMember("content"))
             {
-                return cand["content"]["parts"][0]["text"].asString();
+                return choice["message"]["content"].asString();
             }
         }
 
         return "ERROR: unexpected response, body: " + respBody;
     }
 
-    return "ERROR: all retries failed. Last error: " + lastError;
+    return "ERROR: provider unavailable after retries: " + lastError;
 }
-

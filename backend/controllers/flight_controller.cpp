@@ -1,4 +1,4 @@
-﻿#include "flight_controller.h"
+#include "flight_controller.h"
 #include <drogon/HttpAppFramework.h>
 #include <json/json.h>
 #include "database/database_manager.h"
@@ -72,10 +72,10 @@ void FlightController::getFlightById(const HttpRequestPtr &req, std::function<vo
             return;
         }
 
-        auto flight = FlightRepository::getFlightById(id);
+        auto result = FlightRepository::getFlightById(id);
 
         Json::Value response;
-        if (flight.isNull())
+        if (!result["found"].asBool())
         {
             response["error"] = "Flight not found";
             auto http_response = HttpResponse::newHttpJsonResponse(response);
@@ -85,7 +85,7 @@ void FlightController::getFlightById(const HttpRequestPtr &req, std::function<vo
         else
         {
             response["status"] = "success";
-            response["data"] = flight;
+            response["data"] = result["flight"];
             auto http_response = HttpResponse::newHttpJsonResponse(response);
             http_response->setStatusCode(k200OK);
             callback(http_response);

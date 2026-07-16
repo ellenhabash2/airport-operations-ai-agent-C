@@ -3,34 +3,41 @@
 #include <iostream>
 #include <pqxx/pqxx>
 
-Json::Value GateRepository::getAllGates()
+namespace
+{
+constexpr const char *kGateColumns =
+    "SELECT g.id, g.gate_number, g.terminal_id, t.code AS terminal_code, g.status "
+    "FROM gates g "
+    "JOIN terminals t ON t.id = g.terminal_id ";
+
+Json::Value gateRowToJson(const pqxx::row &row)
+{
+    Json::Value gate;
+    gate["id"] = row["id"].c_str();
+    gate["gate_number"] = row["gate_number"].c_str();
+    gate["terminal_id"] = row["terminal_id"].c_str();
+    gate["terminal_code"] = row["terminal_code"].c_str();
+    gate["status"] = row["status"].c_str();
+    return gate;
+}
+
+Json::Value queryGates(const std::string &whereClause)
 {
     Json::Value gates(Json::arrayValue);
-    
+
     try
     {
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
-        
-        pqxx::result res = txn.exec(
-            "SELECT g.id, g.gate_number, g.terminal_id, t.code AS terminal_code, g.status "
-            "FROM gates g "
-            "JOIN terminals t ON t.id = g.terminal_id "
-            "ORDER BY t.code, g.gate_number");
-        
-        int index = 0;
+
+        pqxx::result res = txn.exec(std::string(kGateColumns) + whereClause +
+                                    "ORDER BY t.code, g.gate_number");
+
         for (auto row : res)
         {
-            Json::Value gate;
-            gate["id"] = row["id"].c_str();
-            gate["gate_number"] = row["gate_number"].c_str();
-            gate["terminal_id"] = row["terminal_id"].c_str();
-            gate["terminal_code"] = row["terminal_code"].c_str();
-            gate["status"] = row["status"].c_str();
-            
-            gates[index++] = gate;
+            gates.append(gateRowToJson(row));
         }
-        
+
         txn.commit();
     }
     catch (const std::exception &e)
@@ -38,6 +45,17 @@ Json::Value GateRepository::getAllGates()
         std::cerr << "Database query error: " << e.what() << std::endl;
         throw;
     }
-    
+
     return gates;
+}
+}
+
+Json::Value GateRepository::getAllGates()
+{
+    return queryGates("");
+}
+
+Json::Value GateRepository::getAvailableGates()
+{
+    return queryGates("WHERE g.status = 'AVAILABLE' ");
 }

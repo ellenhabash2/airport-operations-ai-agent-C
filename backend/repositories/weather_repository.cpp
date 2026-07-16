@@ -3,18 +3,23 @@
 #include <iostream>
 #include <pqxx/pqxx>
 
-Json::Value WeatherRepository::getLatestWeather()
+namespace
+{
+Json::Value queryWeather(int limit)
 {
     Json::Value weather(Json::arrayValue);
-    
+
     try
     {
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
-        
-        pqxx::result res = txn.exec("SELECT id, condition, visibility_km, wind_speed_kmh, wind_direction, temperature_c, pressure_hpa, created_at FROM weather_reports ORDER BY created_at DESC LIMIT 10");
-        
-        int index = 0;
+
+        pqxx::result res = txn.exec_params(
+            "SELECT id, condition, visibility_km, wind_speed_kmh, wind_direction, "
+            "temperature_c, pressure_hpa, created_at "
+            "FROM weather_reports ORDER BY created_at DESC LIMIT $1",
+            limit);
+
         for (auto row : res)
         {
             Json::Value report;
@@ -26,10 +31,9 @@ Json::Value WeatherRepository::getLatestWeather()
             report["temperature_c"] = row["temperature_c"].as<double>();
             report["pressure_hpa"] = row["pressure_hpa"].as<double>();
             report["created_at"] = row["created_at"].c_str();
-            
-            weather[index++] = report;
+            weather.append(report);
         }
-        
+
         txn.commit();
     }
     catch (const std::exception &e)
@@ -37,8 +41,31 @@ Json::Value WeatherRepository::getLatestWeather()
         std::cerr << "Database query error: " << e.what() << std::endl;
         throw;
     }
-    
+
     return weather;
+}
+}
+
+Json::Value WeatherRepository::getRecentWeather()
+{
+    return queryWeather(10);
+}
+
+Json::Value WeatherRepository::getLatestWeather()
+{
+    Json::Value reports = queryWeather(1);
+    Json::Value result;
+
+    if (reports.empty())
+    {
+        result["found"] = false;
+        result["message"] = "No weather reports are available.";
+        return result;
+    }
+
+    result["found"] = true;
+    result["report"] = reports[0];
+    return result;
 }
 
 Json::Value WeatherRepository::createWeather(const std::string &condition, float visibility_km,

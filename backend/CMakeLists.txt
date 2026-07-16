@@ -99,6 +99,8 @@ set(AEROMIND_SOURCES
     agent/GeminiClient.cpp
     controllers/gemini_test_controller.cpp
     security/PasswordHasher.cpp
+    security/JwtService.cpp
+    controllers/jwt_test_controller.cpp
     controllers/hash_test_controller.cpp
     utils/json_utils.cpp
 )
@@ -142,6 +144,7 @@ endif()
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
+
 
 
 

@@ -38,6 +38,7 @@
       DB_PASSWORD: aeromind_password
       PORT: 8848
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8848:8848"
     networks:
@@ -55,4 +56,5 @@ volumes:
 networks:
   aeromind_network:
     driver: bridge
+
 

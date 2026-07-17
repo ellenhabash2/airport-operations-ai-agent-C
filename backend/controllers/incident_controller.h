@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <drogon/HttpController.h>
 #include <string>
 
@@ -9,8 +9,8 @@ class IncidentController : public HttpController<IncidentController>
 public:
     METHOD_LIST_BEGIN
     ADD_METHOD_TO(IncidentController::getIncidents, "/incidents", Get);
-    ADD_METHOD_TO(IncidentController::createIncident, "/incidents", Post);
-    ADD_METHOD_TO(IncidentController::resolveIncident, "/incidents/{1}/resolve", Patch);
+    ADD_METHOD_TO(IncidentController::createIncident, "/incidents", Post, "JwtAuthFilter");
+    ADD_METHOD_TO(IncidentController::resolveIncident, "/incidents/{1}/resolve", Patch, "JwtAuthFilter");
     METHOD_LIST_END
 
     void getIncidents(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);

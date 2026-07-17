@@ -8,7 +8,7 @@ class AgentController : public HttpController<AgentController>
 {
 public:
     METHOD_LIST_BEGIN
-    ADD_METHOD_TO(AgentController::queryAgent, "/agent/query", Post);
+    ADD_METHOD_TO(AgentController::queryAgent, "/agent/query", Post, "JwtAuthFilter");
     ADD_METHOD_TO(AgentController::getHistory, "/agent/history", Get);
     METHOD_LIST_END
 

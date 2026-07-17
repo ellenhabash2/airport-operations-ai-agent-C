@@ -100,6 +100,7 @@ set(AEROMIND_SOURCES
     agent/ToolRegistry.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp
+    security/JwtAuthFilter.cpp
 )
 
 add_executable(aeromind_backend ${AEROMIND_SOURCES})

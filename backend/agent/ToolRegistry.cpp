@@ -41,11 +41,11 @@ Json::Value ToolRegistry::getToolDefinitions()
 
     // Read tools
     tools.append(makeTool("find_delayed_flights", "Returns all flights that are currently delayed."));
-    tools.append(makeTool("get_active_incidents", "Returns airport operational incidents (open, investigating, resolved)."));
+    tools.append(makeTool("get_active_incidents", "Returns airport operational incidents that still need attention (status OPEN or INVESTIGATING; excludes RESOLVED)."));
     tools.append(makeTool("get_all_flights", "Returns the full list of flights."));
     tools.append(makeToolWithParam("get_flight_details", "Returns full details of a single flight by its numeric id.",
                                    "id", "The numeric flight id, e.g. \"42\"."));
-    tools.append(makeTool("get_available_gates", "Returns all gates and their status."));
+    tools.append(makeTool("get_available_gates", "Returns gates that are currently available (status AVAILABLE)."));
     tools.append(makeTool("get_runway_status", "Returns all runways and their status."));
     tools.append(makeTool("get_latest_weather", "Returns the latest weather report for the airport."));
 
@@ -60,8 +60,16 @@ Json::Value ToolRegistry::getToolDefinitions()
         Json::Value s; s["type"] = "string";
         s["description"] = "Short incident title.";        props["title"] = s;
         s["description"] = "Detailed description.";        props["description"] = s;
-        s["description"] = "Severity: LOW, MEDIUM, HIGH, or CRITICAL."; props["severity"] = s;
         s["description"] = "Location, e.g. Terminal 1.";   props["location"] = s;
+
+        // severity is constrained to the four values the schema accepts.
+        Json::Value sev; sev["type"] = "string";
+        sev["description"] = "Severity level.";
+        sev["enum"].append("LOW");
+        sev["enum"].append("MEDIUM");
+        sev["enum"].append("HIGH");
+        sev["enum"].append("CRITICAL");
+        props["severity"] = sev;
         tool["function"]["parameters"]["required"].append("title");
         tool["function"]["parameters"]["required"].append("description");
         tool["function"]["parameters"]["required"].append("severity");

@@ -1,5 +1,6 @@
 ﻿#include "incident_controller.h"
 #include <drogon/HttpAppFramework.h>
+#include <iostream>
 #include <json/json.h>
 #include "repositories/incident_repository.h"
 #include <array>
@@ -32,7 +33,8 @@ void IncidentController::getIncidents(const HttpRequestPtr &req, std::function<v
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);
@@ -86,7 +88,8 @@ void IncidentController::createIncident(const HttpRequestPtr &req, std::function
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);
@@ -149,7 +152,8 @@ void IncidentController::resolveIncident(const HttpRequestPtr &req, std::functio
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);

@@ -2,11 +2,18 @@
 #include <jwt-cpp/jwt.h>
 #include <cstdlib>
 #include <chrono>
+#include <stdexcept>
 
 std::string JwtService::getSecret()
 {
     const char *s = std::getenv("JWT_SECRET");
-    return s ? s : "default_dev_secret";
+    if (!s || *s == '\0')
+    {
+        // No safe default: a known secret would let anyone forge tokens.
+        // Docker already requires JWT_SECRET; fail loudly for local runs too.
+        throw std::runtime_error("JWT_SECRET is not configured");
+    }
+    return s;
 }
 
 std::string JwtService::generateToken(const std::string &userId, const std::string &email)

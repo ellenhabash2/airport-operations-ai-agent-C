@@ -1,4 +1,5 @@
-#include "flight_controller.h"
+﻿#include "flight_controller.h"
+#include <iostream>
 #include <drogon/HttpAppFramework.h>
 #include <json/json.h>
 #include "database/database_manager.h"
@@ -23,7 +24,8 @@ void FlightController::getFlights(const HttpRequestPtr &req, std::function<void(
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);
@@ -49,7 +51,8 @@ void FlightController::getDelayedFlights(const HttpRequestPtr &req, std::functio
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);
@@ -94,7 +97,8 @@ void FlightController::getFlightById(const HttpRequestPtr &req, std::function<vo
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
 
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);

@@ -1,12 +1,12 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <json/json.h>
 
 // AI client backed by Groq (OpenAI-compatible API).
-class GeminiClient
+class LLMClient
 {
 public:
-    GeminiClient();
+    LLMClient();
 
     // Simple prompt -> text answer (used for quick tests).
     std::string ask(const std::string &question);

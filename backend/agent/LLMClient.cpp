@@ -1,4 +1,4 @@
-﻿#include "GeminiClient.h"
+#include "LLMClient.h"
 #include <drogon/drogon.h>
 #include <json/json.h>
 #include <cstdlib>
@@ -6,14 +6,14 @@
 #include <thread>
 #include <chrono>
 
-GeminiClient::GeminiClient()
+LLMClient::LLMClient()
 {
     // Now backed by Groq (OpenAI-compatible API).
     const char *key = std::getenv("GROQ_API_KEY");
     api_key_ = key ? key : "";
 }
 
-std::string GeminiClient::ask(const std::string &question)
+std::string LLMClient::ask(const std::string &question)
 {
     if (api_key_.empty())
     {
@@ -99,7 +99,7 @@ std::string GeminiClient::ask(const std::string &question)
 }
 
 // ---- Tool-calling chat completion ----
-Json::Value GeminiClient::chatWithTools(const Json::Value &messages, const Json::Value &tools)
+Json::Value LLMClient::chatWithTools(const Json::Value &messages, const Json::Value &tools)
 {
     Json::Value result;
 

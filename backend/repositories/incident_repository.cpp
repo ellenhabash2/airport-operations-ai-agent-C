@@ -1,10 +1,22 @@
-#include "incident_repository.h"
+﻿#include "incident_repository.h"
 #include "database/database_manager.h"
 #include <iostream>
 #include <pqxx/pqxx>
+#include <algorithm>
+#include <cctype>
 
 namespace
 {
+// incidents.id is an integer column. The agent's resolve_incident tool feeds
+// the model's raw argument in here, so a non-numeric value would make
+// PostgreSQL throw and fail the whole agent turn. Guard it in one place.
+bool isPositiveInteger(const std::string &value)
+{
+    return !value.empty() &&
+           std::all_of(value.begin(), value.end(),
+                       [](unsigned char ch) { return std::isdigit(ch); });
+}
+
 constexpr const char *kIncidentColumns =
     "SELECT id, title, description, severity, location, status, created_at FROM incidents ";
 
@@ -102,6 +114,13 @@ Json::Value IncidentRepository::resolveIncident(const std::string &id)
 {
     Json::Value result;
 
+    // Reject non-numeric ids up front so a bad id never reaches PostgreSQL.
+    if (!isPositiveInteger(id))
+    {
+        result["found"] = false;
+        return result;
+    }
+
     try
     {
         auto conn = DatabaseManager::getInstance().getConnection();
@@ -157,4 +176,3 @@ Json::Value IncidentRepository::resolveIncident(const std::string &id)
 
     return result;
 }
-

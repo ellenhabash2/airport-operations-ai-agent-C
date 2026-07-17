@@ -1,10 +1,24 @@
-#include "flight_repository.h"
+﻿#include "flight_repository.h"
 #include "database/database_manager.h"
 #include <iostream>
 #include <pqxx/pqxx>
+#include <algorithm>
+#include <cctype>
 
 namespace
 {
+// The agent's get_flight_details tool passes whatever id string the model
+// produces straight through to here. flights.id is an integer column, so a
+// non-numeric value ("abc", "42.5", an empty string) makes PostgreSQL throw
+// "invalid input syntax for integer" and would turn a single bad tool call
+// into a 500 for the whole /agent/query request. Guard it once, in one place,
+// so both the REST endpoint and the agent tool stay safe.
+bool isPositiveInteger(const std::string &value)
+{
+    return !value.empty() &&
+           std::all_of(value.begin(), value.end(),
+                       [](unsigned char ch) { return std::isdigit(ch); });
+}
 // Every flight query selects the same columns, so map a row in one place.
 constexpr const char *kFlightColumns =
     "SELECT f.id, f.flight_number, a.iata_code AS airline, ac.registration_number AS aircraft, "
@@ -93,6 +107,14 @@ Json::Value FlightRepository::getDelayedFlights()
 Json::Value FlightRepository::getFlightById(const std::string &id)
 {
     Json::Value result;
+
+    // Reject non-numeric ids up front so a bad id never reaches PostgreSQL.
+    if (!isPositiveInteger(id))
+    {
+        result["found"] = false;
+        result["message"] = "Flight id must be a positive integer.";
+        return result;
+    }
 
     try
     {

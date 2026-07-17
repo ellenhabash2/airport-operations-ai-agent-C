@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+﻿cmake_minimum_required(VERSION 3.16)
 project(aeromind_backend CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -95,15 +95,11 @@ set(AEROMIND_SOURCES
     repositories/incident_repository.cpp
     repositories/weather_repository.cpp
     repositories/user_repository.cpp
-    controllers/tools_test_controller.cpp
     tools/tools.cpp
     agent/GeminiClient.cpp
     agent/ToolRegistry.cpp
-    controllers/gemini_test_controller.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp
-    controllers/jwt_test_controller.cpp
-    controllers/hash_test_controller.cpp
     utils/json_utils.cpp
 )
 
@@ -146,9 +142,3 @@ endif()
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
-
-
-
-
-
-

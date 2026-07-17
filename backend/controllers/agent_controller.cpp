@@ -78,14 +78,33 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
                 for (const auto &toolCall : message["tool_calls"])
                 {
                     std::string toolName = toolCall["function"]["name"].asString();
-                    std::string argsStr = toolCall["function"]["arguments"].asString();
+                    const Json::Value &rawArgs = toolCall["function"]["arguments"];
 
-                    // Parse the arguments string into JSON.
-                    Json::Value args;
-                    Json::CharReaderBuilder rb;
-                    std::string e;
-                    std::unique_ptr<Json::CharReader> jr(rb.newCharReader());
-                    jr->parse(argsStr.c_str(), argsStr.c_str() + argsStr.size(), &args, &e);
+                    // OpenAI-style providers send "arguments" as a JSON *string*,
+                    // but some return it as an already-parsed object. Handle both,
+                    // and never let a malformed value throw out of the loop.
+                    Json::Value args(Json::objectValue);
+                    if (rawArgs.isObject())
+                    {
+                        args = rawArgs;
+                    }
+                    else if (rawArgs.isString())
+                    {
+                        std::string argsStr = rawArgs.asString();
+                        if (!argsStr.empty())
+                        {
+                            Json::CharReaderBuilder rb;
+                            std::string parseErr;
+                            std::unique_ptr<Json::CharReader> jr(rb.newCharReader());
+                            // If parsing fails, args stays an empty object and the
+                            // tool runs with its defaults rather than crashing.
+                            jr->parse(argsStr.c_str(), argsStr.c_str() + argsStr.size(), &args, &parseErr);
+                            if (!args.isObject())
+                            {
+                                args = Json::Value(Json::objectValue);
+                            }
+                        }
+                    }
 
                     // Execute the tool.
                     Json::Value toolResult = ToolRegistry::executeTool(toolName, args);
@@ -112,6 +131,15 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
                 finalAnswer = message["content"].asString();
             }
             break;
+        }
+
+        // If the model kept calling tools and never produced a final text
+        // answer within the step budget, return a clear message instead of an
+        // empty string so the client always has something to show.
+        if (finalAnswer.empty())
+        {
+            finalAnswer = "I couldn't reach a final answer within the allowed "
+                          "number of steps. Please try rephrasing your question.";
         }
 
         Json::Value response;

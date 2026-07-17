@@ -1,4 +1,5 @@
-#include "gate_controller.h"
+﻿#include "gate_controller.h"
+#include <iostream>
 #include <drogon/HttpAppFramework.h>
 #include <json/json.h>
 #include "repositories/gate_repository.h"
@@ -20,7 +21,8 @@ void GateController::getGates(const HttpRequestPtr &req, std::function<void(cons
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
         
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);

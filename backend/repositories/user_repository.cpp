@@ -13,24 +13,24 @@ Json::Value UserRepository::createUser(const std::string &username, const std::s
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
 
-        // Check if email or username already exists
-        pqxx::result existing = txn.exec_params(
-            "SELECT id FROM users WHERE email = $1 OR username = $2",
-            email, username);
-
-        if (!existing.empty())
-        {
-            result["error"] = "A user with this email or username already exists";
-            return result;
-        }
-
+        // Insert and let the UNIQUE constraints on email/username decide.
+        // ON CONFLICT DO NOTHING closes the check-then-insert race where two
+        // concurrent requests could both pass a prior SELECT and one would then
+        // hit the constraint and 500. On conflict, no row is returned.
         pqxx::result res = txn.exec_params(
             "INSERT INTO users (username, email, password_hash) "
             "VALUES ($1, $2, $3) "
+            "ON CONFLICT DO NOTHING "
             "RETURNING id, username, email, role, created_at",
             username, email, password_hash);
 
         txn.commit();
+
+        if (res.empty())
+        {
+            result["error"] = "A user with this email or username already exists";
+            return result;
+        }
 
         auto row = res[0];
         result["id"] = row["id"].c_str();

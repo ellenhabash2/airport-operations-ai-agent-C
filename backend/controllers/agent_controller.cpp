@@ -1,5 +1,6 @@
 ﻿#include "agent_controller.h"
 #include <drogon/HttpAppFramework.h>
+#include <iostream>
 #include <json/json.h>
 #include "agent/GeminiClient.h"
 #include "agent/ToolRegistry.h"
@@ -164,9 +165,25 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
             break;
         }
 
-        // If the model kept calling tools and never produced a final text
-        // answer within the step budget, return a clear message instead of an
-        // empty string so the client always has something to show.
+        // If the model kept calling tools and never wrote a final answer within
+        // the step budget, ask it once more with NO tools so it must summarize
+        // what it already gathered into a useful reply.
+        if (finalAnswer.empty())
+        {
+            Json::Value summaryResp = client.chatWithTools(messages, Json::Value(Json::arrayValue));
+            if (!summaryResp.isMember("error") &&
+                summaryResp.isMember("choices") && summaryResp["choices"].isArray() &&
+                !summaryResp["choices"].empty())
+            {
+                const Json::Value &m = summaryResp["choices"][0]["message"];
+                if (m.isMember("content") && !m["content"].isNull())
+                {
+                    finalAnswer = m["content"].asString();
+                }
+            }
+        }
+
+        // Absolute fallback so the client always has something to show.
         if (finalAnswer.empty())
         {
             finalAnswer = "I couldn't reach a final answer within the allowed "
@@ -186,7 +203,8 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
     catch (const std::exception &e)
     {
         Json::Value error_response;
-        error_response["error"] = e.what();
+        std::cerr << "Request error: " << e.what() << std::endl;
+        error_response["error"] = "Internal server error";
         auto http_response = HttpResponse::newHttpJsonResponse(error_response);
         http_response->setStatusCode(k500InternalServerError);
         callback(http_response);

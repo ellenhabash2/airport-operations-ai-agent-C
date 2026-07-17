@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 project(aeromind_backend CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -100,7 +100,6 @@ set(AEROMIND_SOURCES
     agent/ToolRegistry.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp
-    utils/json_utils.cpp
 )
 
 add_executable(aeromind_backend ${AEROMIND_SOURCES})

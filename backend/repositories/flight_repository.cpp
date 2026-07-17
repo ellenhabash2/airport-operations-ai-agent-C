@@ -1,4 +1,4 @@
-﻿#include "flight_repository.h"
+#include "flight_repository.h"
 #include "database/database_manager.h"
 #include <iostream>
 #include <pqxx/pqxx>
@@ -143,47 +143,3 @@ Json::Value FlightRepository::getFlightById(const std::string &id)
     return result;
 }
 
-Json::Value FlightRepository::createFlight(const std::string &flight_number, const std::string &airline_id,
-                                           const std::string &aircraft_id, const std::string &origin,
-                                           const std::string &destination,
-                                           const std::string &departure_time, const std::string &arrival_time,
-                                           const std::string &status)
-{
-    Json::Value flight;
-
-    try
-    {
-        auto conn = DatabaseManager::getInstance().getConnection();
-        pqxx::work txn(*conn);
-
-        pqxx::result res = txn.exec_params(
-            "INSERT INTO flights (flight_number, airline_id, aircraft_id, origin, destination, "
-            "departure_time, arrival_time, status) "
-            "VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7::timestamp, $8) "
-            "RETURNING id, departure_time, arrival_time, status",
-            flight_number, airline_id, aircraft_id, origin, destination,
-            departure_time, arrival_time, status);
-
-        if (!res.empty())
-        {
-            flight["id"] = res[0]["id"].c_str();
-            flight["flight_number"] = flight_number;
-            flight["airline_id"] = airline_id;
-            flight["aircraft_id"] = aircraft_id;
-            flight["origin"] = origin;
-            flight["destination"] = destination;
-            flight["departure_time"] = res[0]["departure_time"].c_str();
-            flight["arrival_time"] = res[0]["arrival_time"].c_str();
-            flight["status"] = res[0]["status"].c_str();
-        }
-
-        txn.commit();
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Database insert error: " << e.what() << std::endl;
-        throw;
-    }
-
-    return flight;
-}

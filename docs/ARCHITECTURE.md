@@ -48,7 +48,7 @@ Current repositories:
 `backend/agent/` defines future AI interfaces:
 
 - `AgentService`
-- `GeminiClient`
+- `LLMClient`
 - `ToolRegistry`
 - `PromptBuilder`
 
@@ -80,7 +80,7 @@ Future AI request flow:
 1. `AgentController` accepts a user query.
 2. `AgentService` builds context using `PromptBuilder`.
 3. `ToolRegistry` exposes airport operations tools.
-4. `GeminiClient` calls Gemini.
+4. `LLMClient` calls Gemini.
 5. Agent loop selects tools, executes repository-backed operations, and persists messages.
 6. Conversation history is stored in `conversations` and `messages`.
 

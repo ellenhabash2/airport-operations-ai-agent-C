@@ -1,8 +1,8 @@
-﻿#include "agent_controller.h"
+#include "agent_controller.h"
 #include <drogon/HttpAppFramework.h>
 #include <iostream>
 #include <json/json.h>
-#include "agent/GeminiClient.h"
+#include "agent/LLMClient.h"
 #include "agent/ToolRegistry.h"
 #include <memory>
 
@@ -38,7 +38,7 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
             }
         }
 
-        GeminiClient client;
+        LLMClient client;
         Json::Value tools = ToolRegistry::getToolDefinitions();
 
         // Conversation starts with a system prompt + the user question.

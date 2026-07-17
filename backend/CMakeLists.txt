@@ -96,7 +96,7 @@ set(AEROMIND_SOURCES
     repositories/weather_repository.cpp
     repositories/user_repository.cpp
     tools/tools.cpp
-    agent/GeminiClient.cpp
+    agent/LLMClient.cpp
     agent/ToolRegistry.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp

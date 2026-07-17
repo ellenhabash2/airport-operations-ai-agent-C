@@ -22,6 +22,21 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
 
         std::string userQuery = (*json)["query"].asString();
 
+        // "query" present but blank (empty or only whitespace) is not a usable
+        // question; reject it up front instead of sending an empty turn to the model.
+        {
+            const auto first = userQuery.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos)
+            {
+                Json::Value error_response;
+                error_response["error"] = "Field 'query' must not be empty";
+                auto http_response = HttpResponse::newHttpJsonResponse(error_response);
+                http_response->setStatusCode(k400BadRequest);
+                callback(http_response);
+                return;
+            }
+        }
+
         GeminiClient client;
         Json::Value tools = ToolRegistry::getToolDefinitions();
 
@@ -81,9 +96,11 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
                     const Json::Value &rawArgs = toolCall["function"]["arguments"];
 
                     // OpenAI-style providers send "arguments" as a JSON *string*,
-                    // but some return it as an already-parsed object. Handle both,
-                    // and never let a malformed value throw out of the loop.
+                    // but some return it as an already-parsed object. Handle both.
                     Json::Value args(Json::objectValue);
+                    bool argsValid = true;
+                    std::string parseErr;
+
                     if (rawArgs.isObject())
                     {
                         args = rawArgs;
@@ -94,21 +111,35 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
                         if (!argsStr.empty())
                         {
                             Json::CharReaderBuilder rb;
-                            std::string parseErr;
                             std::unique_ptr<Json::CharReader> jr(rb.newCharReader());
-                            // If parsing fails, args stays an empty object and the
-                            // tool runs with its defaults rather than crashing.
-                            jr->parse(argsStr.c_str(), argsStr.c_str() + argsStr.size(), &args, &parseErr);
-                            if (!args.isObject())
-                            {
-                                args = Json::Value(Json::objectValue);
-                            }
+                            argsValid = jr->parse(argsStr.c_str(), argsStr.c_str() + argsStr.size(), &args, &parseErr)
+                                        && args.isObject();
                         }
                     }
 
-                    // Execute the tool.
-                    Json::Value toolResult = ToolRegistry::executeTool(toolName, args);
                     toolsUsed.append(toolName);
+
+                    // Build the tool result. Malformed arguments or an exception
+                    // thrown by a tool must not crash the whole request: report the
+                    // problem back to the model as the tool's result so it can react.
+                    Json::Value toolResult;
+                    if (!argsValid)
+                    {
+                        toolResult["error"] = "Invalid tool arguments" +
+                                              (parseErr.empty() ? std::string() : ": " + parseErr);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            toolResult = ToolRegistry::executeTool(toolName, args);
+                        }
+                        catch (const std::exception &toolEx)
+                        {
+                            toolResult = Json::Value(Json::objectValue);
+                            toolResult["error"] = std::string("Tool execution failed: ") + toolEx.what();
+                        }
+                    }
 
                     // Append the tool result back into the conversation.
                     Json::StreamWriterBuilder w;

@@ -95,6 +95,7 @@ set(AEROMIND_SOURCES
     repositories/incident_repository.cpp
     repositories/weather_repository.cpp
     repositories/user_repository.cpp
+    repositories/conversation_repository.cpp
     tools/tools.cpp
     agent/LLMClient.cpp
     agent/ToolRegistry.cpp

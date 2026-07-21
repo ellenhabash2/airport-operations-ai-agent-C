@@ -5,102 +5,309 @@
 #include "agent/LLMClient.h"
 #include "agent/ToolRegistry.h"
 #include <memory>
+#include "repositories/conversation_repository.h"
+#include "security/JwtService.h"
 
-void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+namespace
+{
+
+HttpResponsePtr createJsonErrorResponse(
+    const std::string &message,
+    HttpStatusCode statusCode)
+{
+    Json::Value errorResponse;
+    errorResponse["error"] = message;
+
+    auto response = HttpResponse::newHttpJsonResponse(errorResponse);
+    response->setStatusCode(statusCode);
+
+    return response;
+}
+
+std::string extractBearerToken(const HttpRequestPtr &req)
+{
+    const std::string authorizationHeader =
+        req->getHeader("Authorization");
+
+    const std::string prefix = "Bearer ";
+
+    if (authorizationHeader.rfind(prefix, 0) != 0)
+    {
+        return "";
+    }
+
+    return authorizationHeader.substr(prefix.size());
+}
+
+// Supports both:
+// "conversation_id": 12
+// and:
+// "conversation_id": "12"
+std::string readConversationId(const Json::Value &json)
+{
+    if (!json.isMember("conversation_id") ||
+        json["conversation_id"].isNull())
+    {
+        return "";
+    }
+
+    const Json::Value &value = json["conversation_id"];
+
+    if (value.isInt() || value.isUInt() ||
+        value.isInt64() || value.isUInt64())
+    {
+        return value.asString();
+    }
+
+    if (value.isString())
+    {
+        return value.asString();
+    }
+
+    return "";
+}
+
+} // namespace
+
+
+void AgentController::queryAgent(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {
-        auto json = req->getJsonObject();
-        if (!json || !json->isMember("query"))
+        /*
+         * The JwtAuthFilter already verified the token before this
+         * controller was called. We extract the authenticated user id
+         * from the same token so conversations can be associated with
+         * their owner.
+         */
+        const std::string token = extractBearerToken(req);
+        const std::string userId = JwtService::getUserId(token);
+
+        if (userId.empty())
         {
-            Json::Value error_response;
-            error_response["error"] = "Missing required field: query";
-            auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-            http_response->setStatusCode(k400BadRequest);
-            callback(http_response);
+            callback(createJsonErrorResponse(
+                "Invalid or expired token",
+                k401Unauthorized));
+            return;
+        }
+
+        auto json = req->getJsonObject();
+
+        if (!json || !json->isMember("query") ||
+            !(*json)["query"].isString())
+        {
+            callback(createJsonErrorResponse(
+                "Missing required field: query",
+                k400BadRequest));
             return;
         }
 
         std::string userQuery = (*json)["query"].asString();
 
-        // "query" present but blank (empty or only whitespace) is not a usable
-        // question; reject it up front instead of sending an empty turn to the model.
+        if (userQuery.find_first_not_of(" \t\r\n") ==
+            std::string::npos)
         {
-            const auto first = userQuery.find_first_not_of(" \t\r\n");
-            if (first == std::string::npos)
+            callback(createJsonErrorResponse(
+                "Field 'query' must not be empty",
+                k400BadRequest));
+            return;
+        }
+
+        /*
+         * If conversation_id was supplied, continue that conversation.
+         * Otherwise, create a new conversation owned by this user.
+         */
+        std::string conversationId;
+
+        if (json->isMember("conversation_id") &&
+            !(*json)["conversation_id"].isNull())
+        {
+            conversationId = readConversationId(*json);
+
+            if (conversationId.empty())
             {
-                Json::Value error_response;
-                error_response["error"] = "Field 'query' must not be empty";
-                auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-                http_response->setStatusCode(k400BadRequest);
-                callback(http_response);
+                callback(createJsonErrorResponse(
+                    "Field 'conversation_id' must be a valid integer",
+                    k400BadRequest));
                 return;
             }
+
+            if (!ConversationRepository::conversationBelongsToUser(
+                    conversationId,
+                    userId))
+            {
+                callback(createJsonErrorResponse(
+                    "You do not have access to this conversation",
+                    k403Forbidden));
+                return;
+            }
+        }
+        else
+        {
+            Json::Value conversation =
+                ConversationRepository::createConversation(userId);
+
+            if (conversation.isMember("error"))
+            {
+                callback(createJsonErrorResponse(
+                    "Conversation could not be created",
+                    k500InternalServerError));
+                return;
+            }
+
+            conversationId = conversation["id"].asString();
         }
 
         LLMClient client;
         Json::Value tools = ToolRegistry::getToolDefinitions();
 
-        // Conversation starts with a system prompt + the user question.
         Json::Value messages(Json::arrayValue);
 
+        /*
+         * The system prompt is application configuration rather than
+         * user conversation history, so it is added on every AI request
+         * but does not need to be stored in the database.
+         */
         Json::Value systemMsg;
         systemMsg["role"] = "system";
         systemMsg["content"] =
             "You are AeroMind, an AI assistant for airport operations. "
-            "Use the provided tools to answer questions about flights, gates, runways, "
-            "incidents, and weather. You may call multiple tools in sequence if needed. "
-            "When you have enough information, give a clear, concise final answer.";
+            "Use the provided tools to answer questions about flights, "
+            "gates, runways, incidents, and weather. "
+            "You may call multiple tools in sequence if needed. "
+            "When you have enough information, give a clear, concise "
+            "final answer.";
+
         messages.append(systemMsg);
+
+        /*
+         * Load previous user and assistant messages before adding the
+         * new user message. The repository query also checks ownership.
+         */
+        Json::Value previousMessages =
+            ConversationRepository::getConversationMessages(
+                conversationId,
+                userId);
+
+        for (const auto &storedMessage : previousMessages)
+        {
+            if (!storedMessage.isMember("role") ||
+                !storedMessage.isMember("content"))
+            {
+                continue;
+            }
+
+            const std::string role =
+                storedMessage["role"].asString();
+
+            /*
+             * Persisted user and assistant messages can safely be sent
+             * back to the provider as conversation context.
+             *
+             * Old tool messages are intentionally not replayed because
+             * an OpenAI-compatible tool message requires its matching
+             * assistant tool_call and tool_call_id from the same turn.
+             */
+            if (role != "user" && role != "assistant")
+            {
+                continue;
+            }
+
+            Json::Value historyMessage;
+            historyMessage["role"] = role;
+            historyMessage["content"] =
+                storedMessage["content"].asString();
+
+            messages.append(historyMessage);
+        }
+
+        /*
+         * Save the new user turn before starting the agent loop.
+         */
+        Json::Value savedUserMessage =
+            ConversationRepository::saveMessage(
+                conversationId,
+                "user",
+                userQuery);
+
+        if (savedUserMessage.isMember("error"))
+        {
+            callback(createJsonErrorResponse(
+                "User message could not be saved",
+                k500InternalServerError));
+            return;
+        }
 
         Json::Value userMsg;
         userMsg["role"] = "user";
         userMsg["content"] = userQuery;
         messages.append(userMsg);
 
-        // Track which tools were called (for transparency / grading demo).
         Json::Value toolsUsed(Json::arrayValue);
         std::string finalAnswer;
 
-        // Agentic loop: up to 5 iterations of tool calls.
+        // Agentic loop: up to five tool-calling iterations.
         for (int step = 0; step < 5; ++step)
         {
-            Json::Value response = client.chatWithTools(messages, tools);
+            Json::Value aiResponse =
+                client.chatWithTools(messages, tools);
 
-            if (response.isMember("error"))
+            if (aiResponse.isMember("error"))
             {
-                Json::Value error_response;
-                error_response["error"] = "AI provider error: " + response["error"].asString();
-                auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-                http_response->setStatusCode(k502BadGateway);
-                callback(http_response);
+                std::cerr
+                    << "AI provider error: "
+                    << aiResponse["error"].asString()
+                    << std::endl;
+
+
+                callback(createJsonErrorResponse(
+                    "AI provider is currently unavailable",
+                    k502BadGateway));
                 return;
             }
 
-            if (!response.isMember("choices") || !response["choices"].isArray() || response["choices"].empty())
+            if (!aiResponse.isMember("choices") ||
+                !aiResponse["choices"].isArray() ||
+                aiResponse["choices"].empty())
             {
                 break;
             }
 
-            const Json::Value &choice = response["choices"][0];
-            const Json::Value &message = choice["message"];
+            const Json::Value &choice =
+                aiResponse["choices"][0];
 
-            // Case 1: the model wants to call one or more tools.
-            if (message.isMember("tool_calls") && message["tool_calls"].isArray() && !message["tool_calls"].empty())
+            if (!choice.isMember("message") ||
+                !choice["message"].isObject())
             {
-                // Append the assistant message (with tool_calls) to the conversation.
+                break;
+            }
+
+            const Json::Value &message =
+                choice["message"];
+
+            /*
+             * The model requested one or more function tools.
+             */
+            if (message.isMember("tool_calls") &&
+                message["tool_calls"].isArray() &&
+                !message["tool_calls"].empty())
+            {
                 messages.append(message);
 
-                for (const auto &toolCall : message["tool_calls"])
+                for (const auto &toolCall :
+                     message["tool_calls"])
                 {
-                    std::string toolName = toolCall["function"]["name"].asString();
-                    const Json::Value &rawArgs = toolCall["function"]["arguments"];
+                    const std::string toolName =
+                        toolCall["function"]["name"].asString();
 
-                    // OpenAI-style providers send "arguments" as a JSON *string*,
-                    // but some return it as an already-parsed object. Handle both.
+                    const Json::Value &rawArgs =
+                        toolCall["function"]["arguments"];
+
                     Json::Value args(Json::objectValue);
                     bool argsValid = true;
-                    std::string parseErr;
+                    std::string parseError;
 
                     if (rawArgs.isObject())
                     {
@@ -108,115 +315,271 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
                     }
                     else if (rawArgs.isString())
                     {
-                        std::string argsStr = rawArgs.asString();
-                        if (!argsStr.empty())
+                        const std::string argsString =
+                            rawArgs.asString();
+
+                        if (!argsString.empty())
                         {
-                            Json::CharReaderBuilder rb;
-                            std::unique_ptr<Json::CharReader> jr(rb.newCharReader());
-                            argsValid = jr->parse(argsStr.c_str(), argsStr.c_str() + argsStr.size(), &args, &parseErr)
-                                        && args.isObject();
+                            Json::CharReaderBuilder readerBuilder;
+
+                            std::unique_ptr<Json::CharReader> reader(
+                                readerBuilder.newCharReader());
+
+                            argsValid =
+                                reader->parse(
+                                    argsString.c_str(),
+                                    argsString.c_str() +
+                                        argsString.size(),
+                                    &args,
+                                    &parseError) &&
+                                args.isObject();
                         }
+                    }
+                    else
+                    {
+                        argsValid = false;
                     }
 
                     toolsUsed.append(toolName);
 
-                    // Build the tool result. Malformed arguments or an exception
-                    // thrown by a tool must not crash the whole request: report the
-                    // problem back to the model as the tool's result so it can react.
                     Json::Value toolResult;
+
                     if (!argsValid)
                     {
-                        toolResult["error"] = "Invalid tool arguments" +
-                                              (parseErr.empty() ? std::string() : ": " + parseErr);
+                        toolResult["error"] =
+                            "Invalid tool arguments";
                     }
                     else
                     {
                         try
                         {
-                            toolResult = ToolRegistry::executeTool(toolName, args);
+                            toolResult =
+                                ToolRegistry::executeTool(
+                                    toolName,
+                                    args);
                         }
-                        catch (const std::exception &toolEx)
+                        catch (const std::exception &toolException)
                         {
-                            toolResult = Json::Value(Json::objectValue);
-                            toolResult["error"] = std::string("Tool execution failed: ") + toolEx.what();
+                            /*
+                             * Log internal details server-side, but do
+                             * not return them to the AI provider.
+                             */
+                            std::cerr
+                                << "Tool execution error in "
+                                << toolName
+                                << ": "
+                                << toolException.what()
+                                << std::endl;
+
+                            toolResult =
+                                Json::Value(Json::objectValue);
+
+                            toolResult["error"] =
+                                "Tool execution failed";
                         }
                     }
 
-                    // Append the tool result back into the conversation.
-                    Json::StreamWriterBuilder w;
-                    w["indentation"] = "";
-                    std::string resultStr = Json::writeString(w, toolResult);
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "";
 
-                    Json::Value toolMsg;
-                    toolMsg["role"] = "tool";
-                    toolMsg["tool_call_id"] = toolCall["id"];
-                    toolMsg["content"] = resultStr;
-                    messages.append(toolMsg);
+                    const std::string resultString =
+                        Json::writeString(
+                            writer,
+                            toolResult);
+
+                    Json::Value toolMessage;
+                    toolMessage["role"] = "tool";
+                    toolMessage["tool_call_id"] =
+                        toolCall["id"];
+                    toolMessage["content"] =
+                        resultString;
+
+                    messages.append(toolMessage);
                 }
-                // Loop again so the model can use the tool results.
+
                 continue;
             }
 
-            // Case 2: the model gave a final text answer.
-            if (message.isMember("content") && !message["content"].isNull())
+            /*
+             * The model returned its final natural-language answer.
+             */
+            if (message.isMember("content") &&
+                !message["content"].isNull())
             {
-                finalAnswer = message["content"].asString();
+                finalAnswer =
+                    message["content"].asString();
             }
+
             break;
         }
 
-        // If the model kept calling tools and never wrote a final answer within
-        // the step budget, ask it once more with NO tools so it must summarize
-        // what it already gathered into a useful reply.
+        /*
+         * If the model used the full tool-call budget, ask it once more
+         * without tools so it must summarize the collected results.
+         */
         if (finalAnswer.empty())
         {
-            Json::Value summaryResp = client.chatWithTools(messages, Json::Value(Json::arrayValue));
-            if (!summaryResp.isMember("error") &&
-                summaryResp.isMember("choices") && summaryResp["choices"].isArray() &&
-                !summaryResp["choices"].empty())
+            Json::Value noTools(Json::arrayValue);
+
+            Json::Value summaryResponse =
+                client.chatWithTools(messages, noTools);
+
+            if (!summaryResponse.isMember("error") &&
+                summaryResponse.isMember("choices") &&
+                summaryResponse["choices"].isArray() &&
+                !summaryResponse["choices"].empty())
             {
-                const Json::Value &m = summaryResp["choices"][0]["message"];
-                if (m.isMember("content") && !m["content"].isNull())
+                const Json::Value &summaryMessage =
+                    summaryResponse["choices"][0]["message"];
+
+                if (summaryMessage.isMember("content") &&
+                    !summaryMessage["content"].isNull())
                 {
-                    finalAnswer = m["content"].asString();
+                    finalAnswer =
+                        summaryMessage["content"].asString();
                 }
             }
         }
 
-        // Absolute fallback so the client always has something to show.
         if (finalAnswer.empty())
         {
-            finalAnswer = "I couldn't reach a final answer within the allowed "
-                          "number of steps. Please try rephrasing your question.";
+            finalAnswer =
+                "I couldn't reach a final answer within the allowed "
+                "number of steps. Please try rephrasing your question.";
+        }
+
+        /*
+         * Persist only the final answer that is visible to the user.
+         * Temporary assistant tool-call objects and tool outputs are
+         * used inside the current agent loop, but are not required for
+         * long-term conversational memory.
+         */
+        Json::Value savedAssistantMessage =
+            ConversationRepository::saveMessage(
+                conversationId,
+                "assistant",
+                finalAnswer);
+
+        if (savedAssistantMessage.isMember("error"))
+        {
+            callback(createJsonErrorResponse(
+                "Assistant response could not be saved",
+                k500InternalServerError));
+            return;
         }
 
         Json::Value response;
         response["status"] = "success";
+        response["conversation_id"] = conversationId;
         response["query"] = userQuery;
         response["answer"] = finalAnswer;
         response["tools_used"] = toolsUsed;
 
-        auto http_response = HttpResponse::newHttpJsonResponse(response);
-        http_response->setStatusCode(k200OK);
-        callback(http_response);
+        auto httpResponse =
+            HttpResponse::newHttpJsonResponse(response);
+
+        httpResponse->setStatusCode(k200OK);
+        callback(httpResponse);
     }
     catch (const std::exception &e)
     {
-        Json::Value error_response;
-        std::cerr << "Request error: " << e.what() << std::endl;
-        error_response["error"] = "Internal server error";
-        auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-        http_response->setStatusCode(k500InternalServerError);
-        callback(http_response);
+        std::cerr
+            << "Agent request error: "
+            << e.what()
+            << std::endl;
+
+        callback(createJsonErrorResponse(
+            "Internal server error",
+            k500InternalServerError));
     }
 }
 
-void AgentController::getHistory(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+
+
+void AgentController::getHistory(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback)
 {
-    Json::Value response;
-    response["status"] = "planned";
-    response["message"] = "Chat history retrieval will be added with conversation memory";
-    auto http_response = HttpResponse::newHttpJsonResponse(response);
-    http_response->setStatusCode(k200OK);
-    callback(http_response);
+    try
+    {
+        // JwtAuthFilter already validated the token.
+        const std::string token = extractBearerToken(req);
+        const std::string userId = JwtService::getUserId(token);
+
+        if (userId.empty())
+        {
+            callback(createJsonErrorResponse(
+                "Invalid or expired token",
+                k401Unauthorized));
+            return;
+        }
+
+        Json::Value response;
+        response["status"] = "success";
+        response["conversations"] =
+            ConversationRepository::getUserConversations(userId);
+
+        auto httpResponse =
+            HttpResponse::newHttpJsonResponse(response);
+
+        httpResponse->setStatusCode(k200OK);
+        callback(httpResponse);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr
+            << "History request error: "
+            << e.what()
+            << std::endl;
+
+        callback(createJsonErrorResponse(
+            "Internal server error",
+            k500InternalServerError));
+    }
+}
+
+void AgentController::getConversationMessages(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback,
+    const std::string &conversationId)
+{
+    try
+    {
+        // JwtAuthFilter already validated the token.
+        const std::string token = extractBearerToken(req);
+        const std::string userId = JwtService::getUserId(token);
+
+        if (userId.empty())
+        {
+            callback(createJsonErrorResponse(
+                "Invalid or expired token",
+                k401Unauthorized));
+            return;
+        }
+
+        Json::Value response;
+        response["status"] = "success";
+        response["conversation_id"] = conversationId;
+        response["messages"] =
+            ConversationRepository::getConversationMessages(
+                conversationId,
+                userId);
+
+        auto httpResponse =
+            HttpResponse::newHttpJsonResponse(response);
+
+        httpResponse->setStatusCode(k200OK);
+        callback(httpResponse);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr
+            << "Conversation messages request error: "
+            << e.what()
+            << std::endl;
+
+        callback(createJsonErrorResponse(
+            "Internal server error",
+            k500InternalServerError));
+    }
 }

@@ -1,4 +1,5 @@
 #include <drogon/drogon.h>
+#include <drogon/HttpResponse.h>
 #include <iostream>
 #include <cstdlib>
 #include <thread>
@@ -60,10 +61,44 @@ int main()
             .setThreadNum(threads)
             .addListener("0.0.0.0", port);
 
+        drogon::app().registerSyncAdvice(
+            [](const drogon::HttpRequestPtr &req) -> drogon::HttpResponsePtr
+            {
+                if (req->method() != drogon::HttpMethod::Options)
+                {
+                    return nullptr;
+                }
+
+                auto resp = drogon::HttpResponse::newHttpResponse();
+
+                resp->setStatusCode(drogon::k204NoContent);
+
+                resp->addHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+                resp->addHeader("Access-Control-Allow-Methods",
+                                "GET, POST, PUT, DELETE, OPTIONS");
+                resp->addHeader("Access-Control-Allow-Headers",
+                                "Content-Type, Authorization");
+                resp->addHeader("Access-Control-Max-Age", "86400");
+
+                return resp;
+            });
+        
+        // Add CORS headers to every response
+        drogon::app().registerPostHandlingAdvice(
+            [](const drogon::HttpRequestPtr &,
+               const drogon::HttpResponsePtr &resp)
+            {
+                resp->addHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+                resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            
+            });
+
         std::cout << "AeroMind Backend starting on port " << port
                   << " with " << threads << " IO threads..." << std::endl;
         std::cout << "Database: " << db_name << " @ " << db_host << ":" << db_port << std::endl;
 
+        
         drogon::app().run();
     }
     catch (const std::exception &e)

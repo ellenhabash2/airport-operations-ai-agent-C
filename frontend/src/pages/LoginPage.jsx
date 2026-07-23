@@ -3,6 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { login } from "../services/authService";
 import "../styles/login.css";
 import Brand from "../components/Brand";
+import { useEffect } from "react";
+import api from "../services/api";
 
 function LoginPage() {
     const navigate = useNavigate();
@@ -12,6 +14,28 @@ function LoginPage() {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        const verifyExistingSession = async () => {
+            const token = localStorage.getItem("token");
+
+            if (!token) {
+                return;
+            }
+
+            try {
+                await api.get("/auth/me");
+                navigate("/overview", { replace: true });
+            } catch (err) {
+                if (err.response?.status === 401) {
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("user");
+                }
+            }
+        };
+
+        verifyExistingSession();
+    }, [navigate]);
 
     async function handleLogin(e) {
         e.preventDefault();
@@ -80,7 +104,10 @@ function LoginPage() {
                         type="email"
                         placeholder="Enter your email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                            setEmail(e.target.value);
+                            setError("");
+                        }}
                         disabled={loading}
                     />
 
@@ -97,7 +124,10 @@ function LoginPage() {
                         type="password"
                         placeholder="Enter your password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                            setPassword(e.target.value);
+                            setError("");
+                        }}
                         disabled={loading}
                     />
 

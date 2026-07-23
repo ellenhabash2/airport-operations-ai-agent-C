@@ -176,3 +176,18 @@ void AuthController::loginUser(const HttpRequestPtr &req, std::function<void(con
         callback(http_response);
     }
 }
+
+void AuthController::getCurrentUser(
+    const HttpRequestPtr &,
+    std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    Json::Value response;
+    response["status"] = "success";
+    response["authenticated"] = true;
+
+    auto httpResponse =
+        HttpResponse::newHttpJsonResponse(response);
+
+    httpResponse->setStatusCode(k200OK);
+    callback(httpResponse);
+}

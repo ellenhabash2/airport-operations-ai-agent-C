@@ -1,0 +1,377 @@
+.overview-page{
+    min-height:100vh;
+    background:#f5f8fc;
+}
+
+/* ================= HEADER ================= */
+
+.dashboard-header{
+
+    height:78px;
+
+    width:100%;
+
+    padding:0 40px;
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    background:linear-gradient(90deg,#153c9e,#1d56d8);
+
+    box-sizing:border-box;
+}
+
+.header-right{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:16px;
+}
+
+.status-pill{
+
+    background:rgba(18,209,116,.12);
+
+    color:#8cffc1;
+
+    padding:10px 18px;
+
+    border-radius:999px;
+
+    font-size:.85rem;
+
+    font-weight:600;
+}
+
+.logout-btn{
+
+    background:transparent;
+
+    color:white;
+
+    border:1px solid rgba(255,255,255,.35);
+
+    padding:10px 18px;
+
+    border-radius:12px;
+
+    cursor:pointer;
+
+    transition:.2s;
+}
+
+.logout-btn:hover{
+
+    background:rgba(255,255,255,.15);
+}
+
+/* ================= CONTENT ================= */
+
+.dashboard-content{
+
+    max-width:1400px;
+
+    margin:auto;
+
+    padding:42px;
+
+    display:grid;
+
+    grid-template-columns:340px 1fr;
+
+    gap:42px;
+}
+
+/* ================= LEFT PANEL ================= */
+
+.dashboard-date{
+
+    color:#3b82f6;
+
+    font-weight:600;
+
+    margin-bottom:18px;
+}
+
+.left-panel h1{
+
+    font-size:3rem;
+
+    line-height:1.1;
+
+    margin-bottom:18px;
+}
+
+.dashboard-description{
+
+    color:#667085;
+
+    margin-bottom:28px;
+
+    font-size:1.05rem;
+}
+
+
+
+/* RIGHT PANEL */
+
+.right-panel{
+
+    min-height:500px;
+}
+
+/* ================= DASHBOARD CARDS ================= */
+
+.stats-grid{
+
+    display:grid;
+
+    grid-template-columns:repeat(4,1fr);
+
+    gap:20px;
+}
+
+.stat-card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:24px;
+
+    box-shadow:0 8px 24px rgba(0,0,0,.05);
+
+    transition:.2s;
+}
+
+.stat-card:hover{
+
+    transform:translateY(-4px);
+}
+
+.stat-title{
+
+    color:#667085;
+
+    font-size:.95rem;
+
+    margin-bottom:16px;
+}
+
+.stat-card h2{
+
+    font-size:2.2rem;
+
+    margin-bottom:12px;
+
+    color:#0f172a;
+}
+
+.stat-green{
+
+    color:#22c55e;
+
+    font-weight:600;
+
+    font-size:.9rem;
+}
+
+.stat-blue{
+
+    color:#2563eb;
+
+    font-weight:600;
+
+    font-size:.9rem;
+}
+
+/* ================= BOTTOM SECTION ================= */
+
+.bottom-grid{
+
+    margin-top:28px;
+
+    display:grid;
+
+    grid-template-columns:1.3fr 1fr;
+
+    gap:22px;
+}
+
+.operations-card,
+.assistant-card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:26px;
+
+    box-shadow:0 8px 24px rgba(0,0,0,.05);
+}
+
+.operations-card h3,
+.assistant-card h3{
+
+    margin-bottom:20px;
+
+    color:#0f172a;
+}
+
+.operation-row{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    padding:14px 0;
+
+    border-bottom:1px solid #edf2f7;
+}
+
+.operation-row:last-child{
+
+    border-bottom:none;
+}
+
+.operation-row span{
+
+    color:#667085;
+}
+
+.operation-row strong{
+
+    color:#2563eb;
+}
+
+.assistant-card p{
+
+    color:#667085;
+
+    line-height:1.6;
+
+    margin-bottom:26px;
+}
+
+.assistant-btn{
+
+    width:100%;
+
+    border:none;
+
+    border-radius:12px;
+
+    padding:14px;
+
+    background:#2563eb;
+
+    color:white;
+
+    font-size:1rem;
+
+    cursor:pointer;
+
+    transition:.2s;
+}
+
+.assistant-btn:hover{
+
+    background:#1d4ed8;
+}
+
+/* ================= PRIORITY ALERT ================= */
+
+.priority-alert{
+
+    margin-top:24px;
+
+    background:white;
+
+    border-left:6px solid #ef4444;
+
+    border-radius:18px;
+
+    padding:26px;
+
+    box-shadow:0 8px 24px rgba(0,0,0,.05);
+}
+
+.alert-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:18px;
+}
+
+.alert-badge{
+
+    background:#fee2e2;
+
+    color:#dc2626;
+
+    padding:8px 14px;
+
+    border-radius:999px;
+
+    font-size:.8rem;
+
+    font-weight:700;
+}
+
+.alert-time{
+
+    color:#94a3b8;
+
+    font-size:.9rem;
+}
+
+.priority-alert h3{
+
+    margin-bottom:14px;
+
+    color:#0f172a;
+}
+
+.priority-alert p{
+
+    color:#667085;
+
+    line-height:1.7;
+
+    margin-bottom:22px;
+}
+
+.alert-btn{
+
+    background:#ef4444;
+
+    color:white;
+
+    border:none;
+
+    padding:12px 20px;
+
+    border-radius:12px;
+
+    cursor:pointer;
+
+    font-size:.95rem;
+
+    transition:.2s;
+}
+
+.alert-btn:hover{
+
+    background:#dc2626;
+}

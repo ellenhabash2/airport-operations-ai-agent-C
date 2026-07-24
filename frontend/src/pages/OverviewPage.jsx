@@ -1,17 +1,43 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Brand from "../components/Brand";
 import "../styles/overview.css";
+import {
+    Plane,
+    DoorOpen,
+    Route,
+    CloudSun,
+} from "lucide-react";
 
 function OverviewPage() {
+    const navigate = useNavigate();
     const [username, setUsername] = useState("Operator");
 
     useEffect(() => {
-        const storedUser = JSON.parse(localStorage.getItem("user"));
+        try {
+            const storedUser = localStorage.getItem("user");
 
-        if (storedUser?.username) {
-            setUsername(storedUser.username);
+            if (!storedUser) {
+                return;
+            }
+
+            const user = JSON.parse(storedUser);
+
+            if (user?.username) {
+                setUsername(user.username);
+            }
+        } catch (error) {
+            console.error("Failed to read user from localStorage:", error);
+            localStorage.removeItem("user");
         }
     }, []);
+
+    function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    navigate("/", { replace: true });
+    }
 
     const today = new Date().toLocaleDateString("en-GB", {
         weekday: "long",
@@ -32,7 +58,11 @@ function OverviewPage() {
                         ● All systems operational
                     </span>
 
-                    <button className="logout-btn">
+                    <button
+                        type="button"
+                        className="logout-btn"
+                        onClick={handleLogout}
+                    >
                         Logout
                     </button>
 
@@ -65,31 +95,59 @@ function OverviewPage() {
 
                   <div className="stats-grid">
 
-                      <div className="stat-card">
-                          <p className="stat-title">Flights</p>
-                          <h2>128</h2>
-                          <span className="stat-green">12 delayed</span>
-                      </div>
+                        <div className="stat-card">
+                            <div className="stat-card-header">
+                                <div className="stat-icon">
+                                    <Plane size={22} />
+                                </div>
 
-                      <div className="stat-card">
-                          <p className="stat-title">Gates</p>
-                          <h2>34</h2>
-                          <span className="stat-green">29 available</span>
-                      </div>
+                                <p className="stat-title">Flights</p>
+                            </div>
 
-                      <div className="stat-card">
-                          <p className="stat-title">Runways</p>
-                          <h2>3</h2>
-                          <span className="stat-green">All active</span>
-                      </div>
+                            <h2>128</h2>
+                            <span className="stat-green">12 delayed</span>
+                        </div>
 
-                      <div className="stat-card">
-                          <p className="stat-title">Weather</p>
-                          <h2>24°C</h2>
-                          <span className="stat-blue">Clear skies</span>
-                      </div>
+                        <div className="stat-card">
+                            <div className="stat-card-header">
+                                <div className="stat-icon">
+                                    <DoorOpen size={22} />
+                                </div>
 
-                  </div>
+                                <p className="stat-title">Gates</p>
+                            </div>
+
+                            <h2>34</h2>
+                            <span className="stat-green">29 available</span>
+                        </div>
+
+                        <div className="stat-card">
+                            <div className="stat-card-header">
+                                <div className="stat-icon">
+                                    <Route size={22} />
+                                </div>
+
+                                <p className="stat-title">Runways</p>
+                            </div>
+
+                            <h2>3</h2>
+                            <span className="stat-green">All active</span>
+                        </div>
+
+                        <div className="stat-card">
+                            <div className="stat-card-header">
+                                <div className="stat-icon">
+                                    <CloudSun size={22} />
+                                </div>
+
+                                <p className="stat-title">Weather</p>
+                            </div>
+
+                            <h2>24°C</h2>
+                            <span className="stat-blue">Clear skies</span>
+                        </div>
+
+                    </div>
                   <div className="bottom-grid">
 
                     <div className="operations-card">
@@ -127,7 +185,11 @@ function OverviewPage() {
                             weather or airport operations.
                         </p>
 
-                        <button className="assistant-btn">
+                        <button
+                            type="button"
+                            className="assistant-btn"
+                            onClick={() => navigate("/chat")}
+                        >
                             Open AI Chat
                         </button>
 
@@ -160,7 +222,7 @@ function OverviewPage() {
                           View Incident Details
                       </button>
 
-                  </div>
+                   </div>
 
                 </section>
 

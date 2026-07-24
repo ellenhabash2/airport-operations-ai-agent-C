@@ -401,3 +401,70 @@
 .stat-card-header .stat-title {
     margin: 0;
 }
+
+.stat-warning {
+    color: #f59e0b;
+    font-weight: 600;
+    font-size: .9rem;
+}
+
+.severity-critical{
+
+    background:#fee2e2;
+    color:#dc2626;
+}
+
+.severity-high{
+
+    background:#fff7ed;
+    color:#ea580c;
+}
+
+.severity-medium{
+
+    background:#fef9c3;
+    color:#ca8a04;
+}
+
+.severity-low{
+
+    background:#dcfce7;
+    color:#16a34a;
+}
+.no-incidents{
+
+    text-align:center;
+
+    padding:30px 10px;
+}
+
+.no-incidents h3{
+
+    color:#16a34a;
+
+    margin-bottom:10px;
+}
+
+.no-incidents p{
+
+    color:#64748b;
+}
+.incident-details{
+
+    margin-top:18px;
+
+    display:flex;
+
+    justify-content:space-between;
+
+    gap:20px;
+
+    color:#475569;
+
+    font-size:.95rem;
+}
+
+.incident-details strong{
+
+    color:#0f172a;
+}

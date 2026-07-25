@@ -256,10 +256,29 @@ void AgentController::queryAgent(
 
             if (aiResponse.isMember("error"))
             {
+                std::cerr << "\n========== AI Provider Error ==========\n";
                 std::cerr
-                    << "AI provider error: "
+                << "User query: "
+                << userQuery
+                << std::endl;
+
+                std::cerr
+                    << "Error: "
                     << aiResponse["error"].asString()
                     << std::endl;
+
+                if (aiResponse.isMember("raw"))
+                {
+                    Json::StreamWriterBuilder writer;
+                    writer["indentation"] = "  ";
+
+                    std::cerr
+                        << "Provider response:\n"
+                        << Json::writeString(writer, aiResponse["raw"])
+                        << std::endl;
+                }
+
+                std::cerr << "=======================================\n";
 
 
                 callback(createJsonErrorResponse(

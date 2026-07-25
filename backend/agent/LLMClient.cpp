@@ -164,7 +164,7 @@ Json::Value LLMClient::chatWithTools(const Json::Value &messages, const Json::Va
 
         if (httpStatus != 200)
         {
-            result["error"] = "HTTP " + std::to_string(httpStatus);
+            result["error"] = "HTTP " + std::to_string(httpStatus)+ ": " +respBody;
             result["raw"] = parsed;
             return result;
         }

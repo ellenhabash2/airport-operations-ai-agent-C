@@ -465,3 +465,25 @@
 
     font-size:.9rem;
 }
+.message-row {
+    display: flex;
+    margin-bottom: 20px;
+}
+
+.message-row.assistant {
+    justify-content: flex-start;
+}
+
+.message-row.user {
+    justify-content: flex-end;
+}
+
+.message-row.user .message-card {
+    background: #6366f1;
+    color: white;
+    max-width: 70%;
+}
+
+.message-row.assistant .message-card {
+    max-width: 70%;
+}

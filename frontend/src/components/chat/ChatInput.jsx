@@ -1,20 +1,8 @@
 import { SendHorizontal } from "lucide-react";
-import { useState } from "react";
 
-export default function ChatInput() {
-    const [message, setMessage] = useState("");
+export default function ChatInput({message,setMessage,handleSend,}) {
 
-    function handleSend() {
-
-    if (!message.trim()) {
-        return;
-    }
-
-    console.log(message);
-
-    setMessage("");
-    }
-
+  
     return (
 
         <div className="chat-input-container">

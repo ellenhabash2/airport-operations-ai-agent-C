@@ -1,35 +1,53 @@
 import { Bot } from "lucide-react";
 
-export default function ChatMessages() {
+export default function ChatMessages({ messages, loading  }) {
+
     return (
+
         <div className="chat-messages">
 
-            <div className="assistant-message">
+            {messages.map((message) => (
 
-                <div className="assistant-avatar">
-                    <Bot size={22} />
+                <div
+                    key={message.id}
+                    className={`message-row ${message.sender}`}
+                >
+
+                    {message.sender === "assistant" && (
+                        <div className="assistant-avatar">
+                            <Bot size={22} />
+                        </div>
+                    )}
+
+                    <div className="message-card">
+
+                        {message.text.split("\n").map((line, index) => (
+                            <p key={index}>{line}</p>
+                        ))}
+
+                    </div>
+
                 </div>
 
-                <div className="message-card">
+            ))}
+            {loading && (
 
-                    <p>
-                        Hello! I'm <strong>AeroMind</strong>, your airport operations
-                        assistant.
-                    </p>
+                <div className="message-row assistant">
 
-                    <p>
-                        I can help you with flights, gates, runways,
-                        weather, incidents and more.
-                    </p>
+                    <div className="assistant-avatar">
+                        <Bot size={22} />
+                    </div>
 
-                    <p>
-                        What would you like to know?
-                    </p>
+                    <div className="message-card">
+                        <p>AeroMind is thinking...</p>
+                    </div>
 
                 </div>
 
-            </div>
+            )}
 
         </div>
+
     );
+
 }

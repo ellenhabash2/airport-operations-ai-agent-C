@@ -5,6 +5,7 @@ import ChatInput from "../components/chat/ChatInput";
 import SuggestedQuestions from "../components/chat/SuggestedQuestions";
 import { useState } from "react";
 import api from "../services/api";
+import { useEffect } from "react";
 
 import "../styles/chat.css";
 
@@ -25,6 +26,12 @@ export default function ChatPage() {
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
     const [conversationId, setConversationId] = useState(null);
+    const [conversations, setConversations] = useState([]);
+    const [selectedConversationId, setSelectedConversationId] =useState(null);
+
+    useEffect(() => {
+    loadConversations();
+    }, []);
 
     async function handleSend() {
 
@@ -63,6 +70,11 @@ export default function ChatPage() {
 
             if (response.data.conversation_id) {
                 setConversationId(response.data.conversation_id);
+                setSelectedConversationId(response.data.conversation_id);
+                sessionStorage.setItem(
+                    "selectedConversationId",
+                    response.data.conversation_id
+                );
             }
 
             const assistantMessage = {
@@ -117,11 +129,96 @@ export default function ChatPage() {
         }
 
     }
+    function handleNewChat() {
+
+        setConversationId(null);
+
+        setMessages([
+            {
+                id: 1,
+                sender: "assistant",
+                text:
+            `Hello! I'm AeroMind, your airport operations assistant.
+
+            I can help you with flights, gates, runways,
+            weather, incidents and more.
+
+            What would you like to know?`,
+            },
+        ]);
+
+        setMessage("");
+        setSelectedConversationId(null);
+        sessionStorage.removeItem(
+            "selectedConversationId"
+        );
+
+    }
+
+    async function loadConversations() {
+
+    try {
+
+        const response = await api.get("/agent/history");
+
+        setConversations(response.data.conversations);
+        console.log(response.data.conversations);
+        
+        const savedConversationId =sessionStorage.getItem("selectedConversationId");
+
+        if (savedConversationId) {
+            loadConversation(savedConversationId);
+        }
+
+    }
+    catch (error) {
+
+        console.error("Failed to load conversations:", error);
+
+    }
+
+    }
+
+    async function loadConversation(conversationId) {
+
+    try {
+
+        const response = await api.get(
+            `/agent/conversations/${conversationId}/messages`
+        );
+
+        console.log(response.data.messages);
+
+        setConversationId(conversationId);
+        setSelectedConversationId(conversationId);
+        sessionStorage.setItem(
+            "selectedConversationId",
+            conversationId
+        );
+
+        const formattedMessages = response.data.messages.map(message => ({
+            id: message.id,
+            sender: message.role,
+            text: message.content,
+        }));
+
+        setMessages(formattedMessages);
+
+    }
+    catch (error) {
+
+        console.error("Failed to load conversation:", error);
+
+    }
+
+}
+    
 
     return (
         <div className="chat-page">
 
-            <ChatSidebar />
+            <ChatSidebar conversations={conversations} onNewChat={handleNewChat} 
+            onConversationClick={loadConversation} selectedConversationId={selectedConversationId}/>
 
             <div className="chat-content">
 

@@ -1,28 +1,12 @@
 import { Plane, Plus, ArrowLeft, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const conversations = [
-    {
-        id: 1,
-        title: "Runway 27 maintenance",
-        date: "Today",
-    },
-    {
-        id: 2,
-        title: "Delayed flights today",
-        date: "Yesterday",
-    },
-    {
-        id: 3,
-        title: "Weather at TLV",
-        date: "Jul 22",
-    },
-];
 
-export default function ChatSidebar() {
+
+export default function ChatSidebar({conversations,onNewChat, onConversationClick, selectedConversationId,}) {
 
     const navigate = useNavigate();
-    const activeConversationId = 1;
+    
 
     return (
 
@@ -44,7 +28,7 @@ export default function ChatSidebar() {
 
                 </div>
 
-                <button className="new-chat-btn">
+                <button className="new-chat-btn" onClick={onNewChat}>
 
                     <Plus size={18} />
 
@@ -63,8 +47,9 @@ export default function ChatSidebar() {
                         <button
                             key={conversation.id}
                             className={`conversation-item ${
-                                activeConversationId === conversation.id ? "active" : ""
+                                selectedConversationId === conversation.id ? "active" : ""
                             }`}
+                            onClick={() => onConversationClick(conversation.id)}
                         >
 
                             <MessageSquare size={18} />
@@ -73,7 +58,9 @@ export default function ChatSidebar() {
 
                                 <p>{conversation.title}</p>
 
-                                <span>{conversation.date}</span>
+                                <span>
+                                    {new Date(conversation.created_at).toLocaleDateString("en-GB")}
+                                </span>
 
                             </div>
 

@@ -14,6 +14,17 @@
 
     padding:24px;
 }
+.chat-sidebar > div {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.conversation-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
 .sidebar-logo{
 
     display:flex;

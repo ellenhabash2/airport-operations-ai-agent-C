@@ -21,7 +21,7 @@ const questions = [
     {
         id: 3,
         icon: PlaneTakeoff,
-        title: "Show me all delayed flights today.",
+        title: "Show me all delayed flights",
         subtitle: "View delayed flights",
     },
     {
@@ -32,7 +32,7 @@ const questions = [
     },
 ];
 
-export default function SuggestedQuestions() {
+export default function SuggestedQuestions({onQuestionClick,}) {
 
     return (
 
@@ -55,6 +55,7 @@ export default function SuggestedQuestions() {
                         <button
                             key={question.id}
                             className="question-card"
+                            onClick={() => onQuestionClick(question.title)}
                         >
 
                             <div className="question-icon">

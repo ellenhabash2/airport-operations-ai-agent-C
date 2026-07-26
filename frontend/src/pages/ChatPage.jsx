@@ -33,13 +33,13 @@ export default function ChatPage() {
     loadConversations();
     }, []);
 
-    async function handleSend() {
+    async function handleSend(question = null) {
 
-        if (!message.trim()) {
+        const userQuery = question ?? message;
+
+        if (!userQuery.trim()) {
             return;
         }
-
-        const userQuery = message;
 
         const userMessage = {
             id: Date.now(),
@@ -232,7 +232,7 @@ export default function ChatPage() {
 
                 </div>
 
-                <SuggestedQuestions />
+                <SuggestedQuestions  onQuestionClick={handleSend}/>
 
             </div>
 

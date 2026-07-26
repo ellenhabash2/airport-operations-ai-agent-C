@@ -24,6 +24,7 @@ export default function ChatPage() {
 
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
+    const [conversationId, setConversationId] = useState(null);
 
     async function handleSend() {
 
@@ -47,9 +48,22 @@ export default function ChatPage() {
 
         try {
 
-            const response = await api.post("/agent/query", {
+            const requestBody = {
                 query: userQuery,
-            });
+            };
+
+            if (conversationId) {
+                requestBody.conversation_id = conversationId;
+            }
+
+            const response = await api.post(
+                "/agent/query",
+                requestBody
+            );
+
+            if (response.data.conversation_id) {
+                setConversationId(response.data.conversation_id);
+            }
 
             const assistantMessage = {
                 id: Date.now() + 1,

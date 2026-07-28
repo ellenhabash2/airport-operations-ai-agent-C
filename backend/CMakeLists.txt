@@ -8,6 +8,15 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 include(FetchContent)
 
 set(BUILD_YAML_CONFIG OFF CACHE BOOL "Build Drogon YAML config support" FORCE)
+set(BUILD_CTL OFF CACHE BOOL "Build drogon_ctl" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build Drogon examples" FORCE)
+set(BUILD_BROTLI OFF CACHE BOOL "Build Drogon Brotli support" FORCE)
+set(BUILD_MYSQL OFF CACHE BOOL "Build Drogon MySQL support" FORCE)
+set(BUILD_REDIS OFF CACHE BOOL "Build Drogon Redis support" FORCE)
+set(BUILD_SQLITE OFF CACHE BOOL "Build Drogon SQLite support" FORCE)
+# Clear discovery results retained by an existing CMake build directory when
+# optional database backends are disabled.
+set(USE_SQLITE3 OFF CACHE BOOL "Use SQLite" FORCE)
 
 # Keep third-party test suites out of AeroMind's CTest run.
 set(_AEROMIND_BUILD_TESTING "${BUILD_TESTING}")
@@ -45,22 +54,20 @@ endif()
 find_package(PostgreSQL REQUIRED)
 find_package(PkgConfig REQUIRED)
 
-find_package(pqxx CONFIG QUIET)
-if(NOT pqxx_FOUND)
-    pkg_check_modules(PQXX QUIET IMPORTED_TARGET libpqxx)
-    if(NOT PQXX_FOUND)
-        if(EXISTS "${CMAKE_SOURCE_DIR}/build/_deps/pqxx-src/CMakeLists.txt")
-            FetchContent_Declare(pqxx SOURCE_DIR "${CMAKE_SOURCE_DIR}/build/_deps/pqxx-src")
-        else()
-            FetchContent_Declare(
-                pqxx
-                GIT_REPOSITORY https://github.com/jtv/libpqxx.git
-                GIT_TAG 7.7.3
-            )
-        endif()
-        FetchContent_MakeAvailable(pqxx)
-    endif()
+# Use one pinned libpqxx source for reproducible headers and linkage. Some
+# distributions package headers and a binary with different ABIs, which only
+# fails at the final link step.
+set(SKIP_BUILD_TEST ON CACHE BOOL "Skip libpqxx tests" FORCE)
+if(EXISTS "${CMAKE_SOURCE_DIR}/build/_deps/pqxx-src/CMakeLists.txt")
+    FetchContent_Declare(pqxx SOURCE_DIR "${CMAKE_SOURCE_DIR}/build/_deps/pqxx-src")
+else()
+    FetchContent_Declare(
+        pqxx
+        GIT_REPOSITORY https://github.com/jtv/libpqxx.git
+        GIT_TAG 7.7.3
+    )
 endif()
+FetchContent_MakeAvailable(pqxx)
 
 # jwt-cpp (header-only) for authentication tokens.
 set(JWT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -136,11 +143,7 @@ else()
     target_link_libraries(aeromind_backend PRIVATE jsoncpp)
 endif()
 
-if(TARGET pqxx::pqxx)
-    target_link_libraries(aeromind_backend PRIVATE pqxx::pqxx)
-else()
-    target_link_libraries(aeromind_backend PRIVATE PkgConfig::PQXX)
-endif()
+target_link_libraries(aeromind_backend PRIVATE pqxx)
 
 if(CMAKE_BUILD_TYPE MATCHES Release)
     target_compile_options(aeromind_backend PRIVATE -O3)

@@ -108,6 +108,13 @@ set(AEROMIND_SOURCES
     repositories/weather_repository.cpp
     repositories/user_repository.cpp
     repositories/conversation_repository.cpp
+    services/flight_service.cpp
+    services/gate_service.cpp
+    services/runway_service.cpp
+    services/incident_service.cpp
+    services/weather_service.cpp
+    services/conversation_service.cpp
+    services/agent_service.cpp
     tools/tools.cpp
     agent/LLMClient.cpp
     agent/LLMConfig.cpp

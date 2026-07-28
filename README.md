@@ -71,6 +71,11 @@ The frontend never contacts Gemini directly. Provider credentials, tool executio
 | `get_active_incidents` | Read | List open or investigating incidents | None |
 | `get_all_flights` | Read | List all flights | None |
 | `get_flight_details` | Read | Get one flight | `id` |
+| `get_flight_by_id` | Read | Get one flight by internal ID | `flight_id` |
+| `get_flight_by_number` | Read | Get one flight by public number | `flight_number` |
+| `search_flights` | Read | Search with combined optional filters | optional filters |
+| `update_flight_status` | Write | Update a validated flight status | `flight_id`, `status` |
+| `assign_flight_to_gate` | Write | Transactionally assign a gate | flight and gate identifiers |
 | `get_available_gates` | Read | List available gates | None |
 | `get_runway_status` | Read | List runways and statuses | None |
 | `get_latest_weather` | Read | Get the newest weather report | None |

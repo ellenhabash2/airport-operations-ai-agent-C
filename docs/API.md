@@ -1,5 +1,24 @@
 # AeroMind API
 
+## Flight operations
+
+Read routes preserve the existing public behavior; operational writes require a
+JWT bearer token. `GET /flights`, `GET /flights/delayed`, `GET /flights/{id}`,
+and `GET /flights/number/{flightNumber}` return flight data. Number matching is
+exact and case-insensitive. `GET /flights/search` accepts optional `origin`,
+`destination`, `status`, `airline`, and `terminal_id`; text filters are partial
+and case-insensitive, all filters combine with AND, and no matches return an
+empty list.
+
+`PATCH /flights/{id}/status` accepts `{"status":"delayed"}`.
+`PATCH /flights/{id}/gate` accepts `{"gate_id":3}` and returns the updated
+flight, nullable previous gate, and new gate. Missing resources return 404;
+unavailable, maintenance, or closed gates return 409.
+
+Supported canonical database statuses are `SCHEDULED`, `BOARDING`, `IN_FLIGHT`,
+`DELAYED`, `CANCELLED`, and `LANDED`. Inputs are case-insensitive; `departed` and
+`arrived` are accepted aliases for `IN_FLIGHT` and `LANDED`.
+
 ## Conventions
 
 The local base URL is `http://localhost:8848`. JSON successes generally contain `"status": "success"`; errors contain a safe top-level `error` string. Protected routes require:

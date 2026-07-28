@@ -207,6 +207,6 @@ INSERT INTO conversations (user_id, title) VALUES
 
 INSERT INTO messages (conversation_id, role, content) VALUES
 (1, 'user', 'Summarize current delayed flights and high severity incidents.'),
-(1, 'assistant', 'Foundation placeholder response for future agent history storage.'),
+(1, 'assistant', 'I can review delayed flights and active incidents using the current simulated operations data.'),
 (2, 'user', 'Check crosswind impact on runway assignments.'),
-(2, 'assistant', 'Foundation placeholder response for future tool-based weather analysis.');
+(2, 'assistant', 'I can compare the latest weather report with current runway and gate status.');

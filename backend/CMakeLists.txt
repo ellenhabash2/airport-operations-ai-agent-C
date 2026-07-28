@@ -9,6 +9,10 @@ include(FetchContent)
 
 set(BUILD_YAML_CONFIG OFF CACHE BOOL "Build Drogon YAML config support" FORCE)
 
+# Keep third-party test suites out of AeroMind's CTest run.
+set(_AEROMIND_BUILD_TESTING "${BUILD_TESTING}")
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
 find_package(Drogon CONFIG QUIET)
 if(NOT Drogon_FOUND)
     if(EXISTS "${CMAKE_SOURCE_DIR}/build/_deps/drogon-src/CMakeLists.txt")
@@ -22,6 +26,7 @@ if(NOT Drogon_FOUND)
     endif()
     FetchContent_MakeAvailable(drogon)
 endif()
+set(BUILD_TESTING "${_AEROMIND_BUILD_TESTING}" CACHE BOOL "" FORCE)
 
 find_package(jsoncpp CONFIG QUIET)
 if(NOT jsoncpp_FOUND)
@@ -116,6 +121,7 @@ target_link_libraries(aeromind_backend PRIVATE
     ${PostgreSQL_LIBRARIES}
     jwt-cpp::jwt-cpp
     bcrypt
+    crypt
 )
 
 if(TARGET Jsoncpp_lib)
@@ -143,3 +149,7 @@ endif()
 install(TARGETS aeromind_backend
     RUNTIME DESTINATION bin
 )
+
+if(AEROMIND_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

@@ -2,6 +2,8 @@
 
 AeroMind is a C++20 Drogon backend foundation for an airport operations AI agent. This phase establishes the production-style backend structure, PostgreSQL schema, Docker runtime, REST endpoints, repository layer, and documented extension points for later AI, authentication, and tool-calling phases.
 
+Automated test setup and commands are documented in [docs/TESTING.md](docs/TESTING.md).
+
 This foundation intentionally does not implement Gemini integration, function tools, the agentic loop, JWT authentication, password hashing, or a React frontend.
 
 ## Architecture

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <json/json.h>
 #include "agent/LLMClient.h"
+#include "agent/AgentLoop.h"
 #include "agent/ToolRegistry.h"
 #include <memory>
 #include "repositories/conversation_repository.h"
@@ -245,220 +246,29 @@ void AgentController::queryAgent(
         userMsg["content"] = userQuery;
         messages.append(userMsg);
 
-        Json::Value toolsUsed(Json::arrayValue);
-        std::string finalAnswer;
+        const auto loopResult = AgentLoop::run(
+            messages,
+            tools,
+            [&client](const Json::Value &currentMessages, const Json::Value &currentTools) {
+                return client.chatWithTools(currentMessages, currentTools);
+            },
+            [](const std::string &name, const Json::Value &arguments) {
+                return ToolRegistry::executeTool(name, arguments);
+            });
 
-        // Agentic loop: up to five tool-calling iterations.
-        for (int step = 0; step < 5; ++step)
+        if (loopResult.providerFailed)
         {
-            Json::Value aiResponse =
-                client.chatWithTools(messages, tools);
-
-            if (aiResponse.isMember("error"))
-            {
-                std::cerr << "\n========== AI Provider Error ==========\n";
-                std::cerr
-                << "User query: "
-                << userQuery
-                << std::endl;
-
-                std::cerr
-                    << "Error: "
-                    << aiResponse["error"].asString()
-                    << std::endl;
-
-                if (aiResponse.isMember("raw"))
-                {
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "  ";
-
-                    std::cerr
-                        << "Provider response:\n"
-                        << Json::writeString(writer, aiResponse["raw"])
-                        << std::endl;
-                }
-
-                std::cerr << "=======================================\n";
-
-
-                callback(createJsonErrorResponse(
-                    "AI provider is currently unavailable",
-                    k502BadGateway));
-                return;
-            }
-
-            if (!aiResponse.isMember("choices") ||
-                !aiResponse["choices"].isArray() ||
-                aiResponse["choices"].empty())
-            {
-                break;
-            }
-
-            const Json::Value &choice =
-                aiResponse["choices"][0];
-
-            if (!choice.isMember("message") ||
-                !choice["message"].isObject())
-            {
-                break;
-            }
-
-            const Json::Value &message =
-                choice["message"];
-
-            /*
-             * The model requested one or more function tools.
-             */
-            if (message.isMember("tool_calls") &&
-                message["tool_calls"].isArray() &&
-                !message["tool_calls"].empty())
-            {
-                messages.append(message);
-
-                for (const auto &toolCall :
-                     message["tool_calls"])
-                {
-                    const std::string toolName =
-                        toolCall["function"]["name"].asString();
-
-                    const Json::Value &rawArgs =
-                        toolCall["function"]["arguments"];
-
-                    Json::Value args(Json::objectValue);
-                    bool argsValid = true;
-                    std::string parseError;
-
-                    if (rawArgs.isObject())
-                    {
-                        args = rawArgs;
-                    }
-                    else if (rawArgs.isString())
-                    {
-                        const std::string argsString =
-                            rawArgs.asString();
-
-                        if (!argsString.empty())
-                        {
-                            Json::CharReaderBuilder readerBuilder;
-
-                            std::unique_ptr<Json::CharReader> reader(
-                                readerBuilder.newCharReader());
-
-                            argsValid =
-                                reader->parse(
-                                    argsString.c_str(),
-                                    argsString.c_str() +
-                                        argsString.size(),
-                                    &args,
-                                    &parseError) &&
-                                args.isObject();
-                        }
-                    }
-                    else
-                    {
-                        argsValid = false;
-                    }
-
-                    toolsUsed.append(toolName);
-
-                    Json::Value toolResult;
-
-                    if (!argsValid)
-                    {
-                        toolResult["error"] =
-                            "Invalid tool arguments";
-                    }
-                    else
-                    {
-                        try
-                        {
-                            toolResult =
-                                ToolRegistry::executeTool(
-                                    toolName,
-                                    args);
-                        }
-                        catch (const std::exception &toolException)
-                        {
-                            /*
-                             * Log internal details server-side, but do
-                             * not return them to the AI provider.
-                             */
-                            std::cerr
-                                << "Tool execution error in "
-                                << toolName
-                                << ": "
-                                << toolException.what()
-                                << std::endl;
-
-                            toolResult =
-                                Json::Value(Json::objectValue);
-
-                            toolResult["error"] =
-                                "Tool execution failed";
-                        }
-                    }
-
-                    Json::StreamWriterBuilder writer;
-                    writer["indentation"] = "";
-
-                    const std::string resultString =
-                        Json::writeString(
-                            writer,
-                            toolResult);
-
-                    Json::Value toolMessage;
-                    toolMessage["role"] = "tool";
-                    toolMessage["tool_call_id"] =
-                        toolCall["id"];
-                    toolMessage["content"] =
-                        resultString;
-
-                    messages.append(toolMessage);
-                }
-
-                continue;
-            }
-
-            /*
-             * The model returned its final natural-language answer.
-             */
-            if (message.isMember("content") &&
-                !message["content"].isNull())
-            {
-                finalAnswer =
-                    message["content"].asString();
-            }
-
-            break;
+            std::cerr << "AI provider=gemini category="
+                      << loopResult.providerError.get("error_category", "unknown").asString()
+                      << " request=agent_query" << std::endl;
+            callback(createJsonErrorResponse(
+                "AI provider is currently unavailable",
+                k502BadGateway));
+            return;
         }
 
-        /*
-         * If the model used the full tool-call budget, ask it once more
-         * without tools so it must summarize the collected results.
-         */
-        if (finalAnswer.empty())
-        {
-            Json::Value noTools(Json::arrayValue);
-
-            Json::Value summaryResponse =
-                client.chatWithTools(messages, noTools);
-
-            if (!summaryResponse.isMember("error") &&
-                summaryResponse.isMember("choices") &&
-                summaryResponse["choices"].isArray() &&
-                !summaryResponse["choices"].empty())
-            {
-                const Json::Value &summaryMessage =
-                    summaryResponse["choices"][0]["message"];
-
-                if (summaryMessage.isMember("content") &&
-                    !summaryMessage["content"].isNull())
-                {
-                    finalAnswer =
-                        summaryMessage["content"].asString();
-                }
-            }
-        }
+        Json::Value toolsUsed = loopResult.toolsUsed;
+        std::string finalAnswer = loopResult.answer;
 
         if (finalAnswer.empty())
         {

@@ -25,9 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 COPY . /build/
 
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build build -j"$(nproc)" \
-    && cmake --install build
+RUN cmake -S . -B /tmp/aeromind-cmake-build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /tmp/aeromind-cmake-build -j"$(nproc)" \
+    && cmake --install /tmp/aeromind-cmake-build
 
 RUN mkdir -p /runtime-deps \
     && ldd /usr/local/bin/aeromind_backend \

@@ -1,7 +1,7 @@
 # Automated testing
 
 AeroMind has isolated backend unit tests and frontend component tests. Unit and
-component tests do not contact PostgreSQL, the backend HTTP server, or Groq.
+component tests do not contact PostgreSQL, the backend HTTP server, or Google.
 
 ## Backend
 
@@ -40,9 +40,14 @@ integration target should require a dedicated connection string (for example
 - tool declaration uniqueness and schemas, unknown tools, and input validation
 - agent-loop behavior with a fake provider, including tool chains, bad
   arguments, provider errors, and iteration limits
+- Gemini request serialization, response parsing, tool-call preservation,
+  controlled errors, timeouts, and retry policy through a fake HTTP transport
 - login, registration, route protection, chat send/loading/error states,
   conversation selection, and new-chat state
 
 Not yet automated: dedicated PostgreSQL integration scenarios, live Drogon HTTP
 endpoint tests, logout UI (there is no logout control in the current frontend),
 and end-to-end browser tests.
+
+The optional Gemini check is documented in [AI_PROVIDER.md](AI_PROVIDER.md).
+It is skipped unless `AEROMIND_TEST_LIVE_AI=1` is explicitly supplied.

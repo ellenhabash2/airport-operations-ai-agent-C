@@ -1,10 +1,14 @@
 # AeroMind - Airport Operations AI Agent
 
-AeroMind is a C++20 Drogon backend foundation for an airport operations AI agent. This phase establishes the production-style backend structure, PostgreSQL schema, Docker runtime, REST endpoints, repository layer, and documented extension points for later AI, authentication, and tool-calling phases.
+AeroMind is a C++20 Drogon backend and React frontend for an airport operations
+AI agent. It uses PostgreSQL, JWT authentication, nine operational tools, a
+bounded agent loop, conversation history, and Google Gemini through its
+OpenAI-compatible Chat Completions endpoint.
 
 Automated test setup and commands are documented in [docs/TESTING.md](docs/TESTING.md).
 
-This foundation intentionally does not implement Gemini integration, function tools, the agentic loop, JWT authentication, password hashing, or a React frontend.
+Gemini setup and migration details are documented in
+[docs/AI_PROVIDER.md](docs/AI_PROVIDER.md).
 
 ## Architecture
 
@@ -63,6 +67,11 @@ Required variables:
 - `DB_USER`
 - `DB_PASSWORD`
 - `PORT`
+- `AI_PROVIDER=gemini`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (defaults to `gemini-2.5-flash`)
+- `GEMINI_BASE_URL`
+- `JWT_SECRET`
 
 ## Endpoints
 
@@ -79,8 +88,8 @@ Required variables:
 | POST | `/incidents` | Create an incident |
 | GET | `/weather` | List latest weather reports |
 | POST | `/weather` | Create a weather report |
-| POST | `/agent/query` | AI agent phase placeholder |
-| GET | `/agent/history` | Conversation memory phase placeholder |
+| POST | `/agent/query` | Authenticated Gemini agent query |
+| GET | `/agent/history` | Authenticated conversation history |
 
 Health response:
 
@@ -101,14 +110,8 @@ The PostgreSQL foundation includes:
 
 See [docs/DATABASE.md](docs/DATABASE.md) for the table-by-table reference.
 
-## Future AI Phases
+## AI provider
 
-Future phases should implement:
-
-- Gemini API client and prompt construction
-- Function tools for flight, gate, runway, weather, and incident operations
-- Agentic planning and tool execution loop
-- JWT authentication and authorization middleware
-- Secure password hashing
-- Persistent chat history behavior
-- Optional React operations console
+Gemini is the active runtime provider. Earlier revisions used Groq; that
+historical detail is retained in the migration note, but no Groq environment
+variable or endpoint is required at runtime.

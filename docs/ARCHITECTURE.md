@@ -43,16 +43,17 @@ Current repositories:
 - Flight, Crew, Incident, WeatherReport
 - Conversation, Message
 
-### Future Agent Layer
+### Agent Layer
 
-`backend/agent/` defines future AI interfaces:
+`backend/agent/` contains:
 
-- `AgentService`
-- `LLMClient`
+- `LLMConfig` for provider-neutral environment configuration
+- `LLMClient` for Gemini's OpenAI-compatible HTTPS endpoint
+- `AgentLoop` for bounded function-call execution
 - `ToolRegistry`
-- `PromptBuilder`
 
-These are intentionally interfaces only in this foundation phase. Later phases should add concrete implementations that call Gemini, compose prompts, register airport operations tools, and run an agentic loop.
+The HTTP transport is injectable, allowing request, response, retry, and error
+behavior to be tested without contacting Google.
 
 ### Future Security Layer
 
@@ -73,16 +74,16 @@ Typical data request:
 4. Repository executes parameterized SQL when input is involved.
 5. Controller returns success JSON or an error JSON with the right HTTP status.
 
-## Planned Agent Flow
+## Agent Flow
 
 Future AI request flow:
 
 1. `AgentController` accepts a user query.
-2. `AgentService` builds context using `PromptBuilder`.
-3. `ToolRegistry` exposes airport operations tools.
-4. `LLMClient` calls Gemini.
-5. Agent loop selects tools, executes repository-backed operations, and persists messages.
-6. Conversation history is stored in `conversations` and `messages`.
+2. Stored user and assistant messages are loaded as context.
+3. `ToolRegistry` exposes nine airport operations tools.
+4. `LLMClient` calls Gemini using the OpenAI-compatible endpoint.
+5. `AgentLoop` preserves assistant tool calls and matching tool-result IDs.
+6. The final user-visible answer is persisted in conversation history.
 
 ## Docker Flow
 

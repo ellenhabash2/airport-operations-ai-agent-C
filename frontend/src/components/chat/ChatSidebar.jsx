@@ -1,5 +1,6 @@
 import { Plane, Plus, ArrowLeft, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
 
 
 
@@ -87,3 +88,14 @@ export default function ChatSidebar({conversations,onNewChat, onConversationClic
 
     );
 }
+
+ChatSidebar.propTypes = {
+    conversations: PropTypes.arrayOf(PropTypes.shape({
+        id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+        title: PropTypes.string.isRequired,
+        created_at: PropTypes.string.isRequired,
+    })).isRequired,
+    onNewChat: PropTypes.func.isRequired,
+    onConversationClick: PropTypes.func.isRequired,
+    selectedConversationId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};

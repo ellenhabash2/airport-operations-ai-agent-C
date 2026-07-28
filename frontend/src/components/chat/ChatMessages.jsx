@@ -1,4 +1,5 @@
 import { Bot } from "lucide-react";
+import PropTypes from "prop-types";
 
 export default function ChatMessages({ messages, loading  }) {
 
@@ -51,3 +52,12 @@ export default function ChatMessages({ messages, loading  }) {
     );
 
 }
+
+ChatMessages.propTypes = {
+    messages: PropTypes.arrayOf(PropTypes.shape({
+        id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+        sender: PropTypes.string.isRequired,
+        text: PropTypes.string.isRequired,
+    })).isRequired,
+    loading: PropTypes.bool.isRequired,
+};

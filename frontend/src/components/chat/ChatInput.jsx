@@ -21,7 +21,11 @@ export default function ChatInput({message,setMessage,handleSend,}) {
                     }}
                 />
 
-                <button className="send-btn" onClick={handleSend}>
+                <button
+                    className="send-btn"
+                    aria-label="Send message"
+                    onClick={() => handleSend()}
+                >
 
                     <SendHorizontal size={20} />
 

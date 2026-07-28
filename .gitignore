@@ -28,3 +28,4 @@ q.json
 q2.json
 .vs/
 *.vsidx
+build-tests/

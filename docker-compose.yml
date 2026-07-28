@@ -38,8 +38,10 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-aeromind_password}
       PORT: 8848
       DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
-      # Fail fast with a clear message instead of starting with an empty key/secret.
-      GROQ_API_KEY: ${GROQ_API_KEY:?GROQ_API_KEY is required. Copy .env.example to .env and set it.}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/chat/completions}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env and set it.}
     ports:
       - "8848:8848"

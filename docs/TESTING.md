@@ -1,53 +1,115 @@
-# Automated testing
+# AeroMind testing
 
-AeroMind has isolated backend unit tests and frontend component tests. Unit and
-component tests do not contact PostgreSQL, the backend HTTP server, or Google.
+## Testing strategy
 
-## Backend
+The repository has deterministic backend unit tests, frontend component tests, Docker health verification, and an explicit live-provider smoke test. Normal tests never contact Gemini and do not require `GEMINI_API_KEY`.
 
-```sh
+The current suite does not contain a separate controller/API integration executable or an isolated PostgreSQL test database. Those remain known gaps rather than claimed coverage.
+
+## Backend tests
+
+Enable tests at configure time:
+
+```bash
 cmake -S . -B build -DAEROMIND_BUILD_TESTS=ON
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-`AEROMIND_BUILD_TESTS` defaults to `OFF`, so the production executable and its
-normal build remain unchanged. GoogleTest is discovered from the system first;
-CMake fetches the pinned version only when it is unavailable.
+The verified suite contains 38 CTest cases:
 
-## Frontend
+| Group | Cases | Behavior |
+| --- | ---: | --- |
+| `PasswordHasherTest` | 4 | Non-plaintext bcrypt output, correct/incorrect passwords, unique salts |
+| `JwtServiceTest` | 6 | Generation, user ID, tampering, wrong signature, expiration, required secret |
+| `ToolRegistryTest` | 4 | Nine unique tools, schemas, unknown dispatch, fake execution |
+| `AgentLoopTest` | 9 | No-tool response, one/three tools, invalid arguments, unknown tool, provider failure, maximum iterations, tool-call ID/order preservation |
+| `LLMConfigTest` | 3 | Gemini defaults, environment overrides, HTTPS requirement |
+| `LLMClientTest` and parameterized status cases | 12 | Request serialization, text/tool parsing, auth header, retries, transport failures, malformed responses, offline configuration, 400/401/403/404 mapping |
 
-```sh
+CTest displays each GoogleTest case separately through `gtest_discover_tests`.
+
+## Fake provider and tools
+
+`LLMClientTest` injects `FakeTransport`, which records URL, headers, body, timeout, and scripted responses. `AgentLoopTest` scripts provider messages in memory. `backend/tests/fakes/FakeTools.cpp` supplies the tool symbols without connecting to PostgreSQL. This design protects credentials and quota while making retries and multi-tool sequences repeatable.
+
+## Database and integration coverage
+
+The automated backend target does not currently start PostgreSQL, reset schema state, or exercise controller routes over HTTP. Database behavior is validated through schema constraints, manual/Compose smoke checks, and direct application use. Normal development data is therefore not modified by CTest.
+
+High-value future tests are:
+
+- registration/login HTTP integration
+- flight and incident controller validation/status codes
+- incident create/resolve transactions
+- conversation ownership across two users
+- repository/schema compatibility in a disposable database
+
+## Frontend tests
+
+The frontend uses Vitest, jsdom, React Testing Library, and user-event.
+
+```bash
 cd frontend
 npm ci
+npm run lint
 npm run test:run
 npm run build
 ```
 
-Use `npm test` for Vitest watch mode. Tests use jsdom and mock the shared Axios
-client, so they never call a live AeroMind backend.
+The verified suite contains 11 tests in two files:
 
-## Database integration tests
+- `auth-pages.test.jsx` (6): login success/failure and registration validation/success paths.
+- `chat-page.test.jsx` (5): message response, pending UI, provider-friendly error, history selection, and new-chat reset.
 
-Database integration tests must never run against development data. A future
-integration target should require a dedicated connection string (for example
-`AEROMIND_TEST_DATABASE_URL`) and isolate or roll back every test case.
+`npm run lint` checks the source with ESLint. `npm run build` verifies Vite's production bundle. No coverage percentage is reported because no coverage command was run.
 
-## Current coverage
+## Docker verification
 
-- bcrypt hashing, verification, rejection, and salting
-- JWT generation, verification, claims, tampering, signatures, and expiration
-- tool declaration uniqueness and schemas, unknown tools, and input validation
-- agent-loop behavior with a fake provider, including tool chains, bad
-  arguments, provider errors, and iteration limits
-- Gemini request serialization, response parsing, tool-call preservation,
-  controlled errors, timeouts, and retry policy through a fake HTTP transport
-- login, registration, route protection, chat send/loading/error states,
-  conversation selection, and new-chat state
+```bash
+JWT_SECRET=replace_with_a_long_random_secret_at_least_32_chars \
+GEMINI_API_KEY=placeholder \
+docker compose config
+docker compose --progress plain build
+docker compose up -d
+docker compose ps
+docker compose logs --tail=200 backend
+```
 
-Not yet automated: dedicated PostgreSQL integration scenarios, live Drogon HTTP
-endpoint tests, logout UI (there is no logout control in the current frontend),
-and end-to-end browser tests.
+Use placeholders only for configuration rendering/building. A real key is required only for a live agent request.
 
-The optional Gemini check is documented in [AI_PROVIDER.md](AI_PROVIDER.md).
-It is skipped unless `AEROMIND_TEST_LIVE_AI=1` is explicitly supplied.
+## Smoke testing
+
+The repository currently provides `scripts/live_ai_smoke.sh`, not a general offline `smoke_test.sh`. Without explicit enablement it exits successfully after reporting that the live test was skipped:
+
+```bash
+./scripts/live_ai_smoke.sh
+```
+
+To run a real request after login:
+
+```bash
+AEROMIND_TEST_LIVE_AI=1 \
+GEMINI_API_KEY='<configured-key>' \
+AEROMIND_LIVE_TOKEN='<AeroMind JWT>' \
+./scripts/live_ai_smoke.sh
+```
+
+The script checks required variables without printing them, sends one authenticated `/agent/query`, validates HTTP 200 and an `answer` field, and reports only sanitized success/failure. Do not enable it in normal automation.
+
+## Observed cleanup baseline
+
+Before final cleanup, the host executable failed to link because the installed libpqxx headers expected symbols absent from the packaged binary. One JWT tamper test was intermittently ineffective because changing the final base64url character can preserve decoded bytes. Frontend lint reported 14 errors and one warning. These findings drove the pinned libpqxx build, deterministic signature mutation, and frontend cleanup.
+
+## Known gaps
+
+- No automated HTTP controller/database integration suite
+- No dedicated disposable PostgreSQL test database
+- No measured coverage percentage
+- No browser end-to-end runner
+- No automated accessibility or load testing
+- Live Gemini behavior is intentionally opt-in and quota-dependent
+
+## Dependency audit note
+
+`npm audit --omit=dev` reports a high-severity React Router advisory affecting React Server Components action handling. AeroMind is a client-only Vite application: it does not enable RSC mode or server actions, so the vulnerable path is not used. The audit's proposed change is outside the installed version range and should be evaluated as a dedicated dependency upgrade rather than forced during final cleanup. Development-tool advisories reported by the full audit likewise require a separate compatibility review.

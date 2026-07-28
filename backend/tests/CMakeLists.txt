@@ -44,6 +44,7 @@ target_sources(aeromind_tests PRIVATE
     ../agent/LLMClient.cpp
     ../services/flight_service.cpp
     ../services/gate_service.cpp
+    ../services/terminal_service.cpp
     ../services/runway_service.cpp
     ../services/incident_service.cpp
     ../services/weather_service.cpp
@@ -51,6 +52,7 @@ target_sources(aeromind_tests PRIVATE
     ../services/agent_service.cpp
     ../repositories/flight_repository.cpp
     ../repositories/gate_repository.cpp
+    ../repositories/terminal_repository.cpp
     ../repositories/runway_repository.cpp
     ../repositories/incident_repository.cpp
     ../repositories/weather_repository.cpp

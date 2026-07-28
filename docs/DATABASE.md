@@ -121,6 +121,8 @@ Airline deletion is restricted while aircraft or flights reference it.
 
 `gate_number` and `terminal_id` are unique together. Flight gate references become null when a gate is deleted.
 
+Gate availability is represented solely by `status = 'AVAILABLE'`; there is no boolean availability column. `OCCUPIED` is counted separately from non-operational `MAINTENANCE` and `CLOSED` states. Flights reach a terminal through `flights.gate_id -> gates.terminal_id`; there is no direct `flights.terminal_id` column.
+
 ### `runways`
 
 | Column | Type | Nullable/default | Constraint and purpose |
@@ -231,6 +233,8 @@ Current agent persistence writes visible user and assistant turns. Message retri
 - `idx_messages_conversation_created` for chronological history reads
 
 PostgreSQL automatically supplies indexes for primary and unique constraints. The schema has no migration framework; changes are maintained in `init.sql` for fresh academic/demo environments.
+
+The existing `(terminal_id, status)` gate index and `flights(gate_id)` index cover terminal aggregates and flight joins. Terminal name/code unique constraints already provide indexes, so Phase 3 adds no duplicates.
 
 ## Seed data
 

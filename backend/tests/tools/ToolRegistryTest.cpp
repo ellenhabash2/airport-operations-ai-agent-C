@@ -6,7 +6,7 @@ TEST(ToolRegistryTest, RegistersEverySupportedToolExactlyOnce)
 {
     const auto definitions = ToolRegistry::getToolDefinitions();
     ASSERT_TRUE(definitions.isArray());
-    EXPECT_EQ(definitions.size(), 14U);
+    EXPECT_EQ(definitions.size(), 19U);
     std::set<std::string> names;
     for (const auto &definition : definitions)
         names.insert(definition["function"]["name"].asString());
@@ -14,6 +14,34 @@ TEST(ToolRegistryTest, RegistersEverySupportedToolExactlyOnce)
     EXPECT_TRUE(names.contains("find_delayed_flights"));
     EXPECT_TRUE(names.contains("create_incident"));
     EXPECT_TRUE(names.contains("resolve_incident"));
+}
+
+
+TEST(ToolRegistryTest, RegistersGateAndTerminalOperationsTools)
+{
+    const auto definitions = ToolRegistry::getToolDefinitions();
+    const std::set<std::string> expected{
+        "get_all_gates", "get_gate_by_id", "get_gate_by_number", "get_available_gates",
+        "get_terminal_status", "get_flights_by_terminal"};
+    std::set<std::string> found;
+    for (const auto &definition : definitions) {
+        const auto name = definition["function"]["name"].asString();
+        if (expected.contains(name)) found.insert(name);
+        if (name == "get_gate_by_id") {
+            EXPECT_EQ(definition["function"]["parameters"]["properties"]["gate_id"]["type"], "integer");
+            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "gate_id");
+        }
+        if (name == "get_terminal_status" || name == "get_flights_by_terminal") {
+            EXPECT_EQ(definition["function"]["parameters"]["properties"]["terminal_id"]["type"], "integer");
+            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "terminal_id");
+        }
+    }
+    EXPECT_EQ(found, expected);
+
+    Json::Value gateArgs; gateArgs["gate_id"] = 1;
+    EXPECT_EQ(ToolRegistry::executeTool("get_gate_by_id", gateArgs)["fake_tool"], "get_gate_by_id");
+    Json::Value terminalArgs; terminalArgs["terminal_id"] = 1;
+    EXPECT_EQ(ToolRegistry::executeTool("get_terminal_status", terminalArgs)["fake_tool"], "get_terminal_status");
 }
 
 TEST(ToolRegistryTest, RegistersCompleteFlightOperationsTools)

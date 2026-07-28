@@ -28,14 +28,15 @@ AeroMind favors visible separation of responsibilities, small testable agent com
 `backend/services` owns current business policy and supplies the shared boundary used by REST controllers and AI tools:
 
 - `FlightService` owns flight identifier validation and not-found behavior.
-- `GateService` exposes the existing all/available gate queries.
+- `GateService` owns gate ID/number validation, all/available lookups, and the shared availability and operational-status rules.
+- `TerminalService` owns terminal existence validation, terminal status, and flights-by-terminal workflows.
 - `RunwayService` exposes current runway status.
 - `IncidentService` owns incident input validation and resolution outcomes, including the already-resolved conflict.
 - `WeatherService` owns current weather input validation and lookup/create operations.
 - `ConversationService` owns creation, ownership checks, ordered history access, and visible-message persistence.
 - `AgentService` coordinates conversation context, `AgentLoop`, and visible turn persistence.
 
-Dependencies are explicit function objects, allowing service tests to use deterministic fakes without PostgreSQL. `TerminalService` is intentionally deferred because the repository currently has no terminal controller, tool, repository, or workflow.
+Dependencies are explicit function objects, allowing service tests to use deterministic fakes without PostgreSQL. Terminal aggregates and flight joins remain in `TerminalRepository`.
 
 ### Agent layer
 
@@ -66,7 +67,24 @@ Dependencies are explicit function objects, allowing service tests to use determ
 
 ### Models
 
-The codebase does not define a separate model/DTO directory. PostgreSQL rows are mapped directly to JsonCpp values in repository helpers. This keeps the project compact but provides less compile-time domain modeling than typed DTOs.
+The terminal domain uses typed `Terminal` and `TerminalStatus` models with shared JSON serializers. Existing flight and gate response contracts remain JsonCpp-based for compatibility.
+
+### Flight-terminal reasoning flow
+
+```mermaid
+flowchart TD
+    User --> Gemini
+    Gemini --> GF[get_flight_by_number]
+    GF --> FlightService
+    FlightService --> FlightRepository
+    FlightRepository --> DB[(PostgreSQL)]
+    Gemini --> TS[get_terminal_status]
+    TS --> TerminalService
+    TerminalService --> TerminalRepository
+    TerminalRepository --> DB
+    Gemini --> TF[get_flights_by_terminal]
+    TF --> TerminalService
+```
 
 ## Frontend architecture
 

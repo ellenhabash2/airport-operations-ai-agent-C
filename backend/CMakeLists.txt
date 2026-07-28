@@ -95,6 +95,7 @@ set(AEROMIND_SOURCES
     controllers/health_controller.cpp
     controllers/flight_controller.cpp
     controllers/gate_controller.cpp
+    controllers/terminal_controller.cpp
     controllers/runway_controller.cpp
     controllers/incident_controller.cpp
     controllers/weather_controller.cpp
@@ -103,6 +104,7 @@ set(AEROMIND_SOURCES
     database/database_manager.cpp
     repositories/flight_repository.cpp
     repositories/gate_repository.cpp
+    repositories/terminal_repository.cpp
     repositories/runway_repository.cpp
     repositories/incident_repository.cpp
     repositories/weather_repository.cpp
@@ -110,6 +112,7 @@ set(AEROMIND_SOURCES
     repositories/conversation_repository.cpp
     services/flight_service.cpp
     services/gate_service.cpp
+    services/terminal_service.cpp
     services/runway_service.cpp
     services/incident_service.cpp
     services/weather_service.cpp

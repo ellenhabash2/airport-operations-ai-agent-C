@@ -6,6 +6,7 @@
 #include "services/gate_service.h"
 #include "services/incident_service.h"
 #include "services/runway_service.h"
+#include "services/terminal_service.h"
 #include "services/weather_service.h"
 #include <stdexcept>
 
@@ -62,6 +63,56 @@ TEST(FlightServiceTest, UpdatesStatusAndMapsGateAssignmentConflicts) {
 TEST(GateServiceTest, SeparatesAllAndAvailableQueries) {
     GateService service({[] { return arrayWith("status", "OCCUPIED"); }, [] { return arrayWith("status", "AVAILABLE"); }});
     EXPECT_EQ(service.getAll()[0]["status"], "OCCUPIED"); EXPECT_EQ(service.getAvailable()[0]["status"], "AVAILABLE");
+}
+TEST(GateServiceTest, ValidatesAndLooksUpGateIdentifiers) {
+    GateService::Dependencies dependencies;
+    dependencies.byId = [](int id) { Json::Value value; value["found"] = id == 3; value["gate"]["id"] = id; return value; };
+    dependencies.byNumber = [](const std::string &number) { Json::Value value; value["found"] = number == "a03"; value["gate"]["gate_number"] = "A3"; return value; };
+    dependencies.byTerminal = [](int id) { Json::Value values(Json::arrayValue); if (id == 1) values.append(Json::Value(Json::objectValue)); return values; };
+    GateService service(dependencies);
+    EXPECT_EQ(service.getGateById(3)["id"], 3);
+    EXPECT_EQ(service.getGateByNumber(" a03 ")["gate_number"], "A3");
+    EXPECT_EQ(service.getGatesByTerminal(1).size(), 1U);
+    expectDomain(DomainErrorKind::Validation, [&] { service.getGateById(0); });
+    expectDomain(DomainErrorKind::Validation, [&] { service.getGateByNumber("  "); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getGateById(4); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getGateByNumber("Z99"); });
+}
+TEST(GateServiceTest, CentralizesAvailabilityAndOperationalRules) {
+    Json::Value gate; gate["status"] = "AVAILABLE";
+    EXPECT_TRUE(GateService::isGateAvailable(gate)); EXPECT_TRUE(GateService::isGateOperational(gate));
+    gate["status"] = "OCCUPIED";
+    EXPECT_FALSE(GateService::isGateAvailable(gate)); EXPECT_TRUE(GateService::isGateOperational(gate));
+    gate["status"] = "MAINTENANCE";
+    EXPECT_FALSE(GateService::isGateAvailable(gate)); EXPECT_FALSE(GateService::isGateOperational(gate));
+}
+
+TEST(TerminalServiceTest, ReturnsTerminalsAndValidatesLookup) {
+    Terminal first{1, "Terminal 1", "T1", 42000};
+    TerminalService::Dependencies dependencies;
+    dependencies.all = [first] { return std::vector<Terminal>{first}; };
+    dependencies.byId = [first](int id) -> std::optional<Terminal> { if (id == 1) return first; return std::nullopt; };
+    dependencies.byName = [first](const std::string &name) -> std::optional<Terminal> { if (name == "terminal 1") return first; return std::nullopt; };
+    TerminalService service(dependencies);
+    EXPECT_EQ(service.getAllTerminals().size(), 1U);
+    EXPECT_EQ(service.getTerminalById(1).code, "T1");
+    EXPECT_EQ(service.getTerminalByName(" terminal 1 ").id, 1);
+    expectDomain(DomainErrorKind::Validation, [&] { service.getTerminalById(0); });
+    expectDomain(DomainErrorKind::Validation, [&] { service.getTerminalByName(" "); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getTerminalById(2); });
+}
+
+TEST(TerminalServiceTest, ReturnsStatusAndTerminalFlightsIncludingEmptyList) {
+    Terminal terminal{2, "Terminal 2", "T2", 28000};
+    TerminalStatus status{terminal, 8, 5, 2, 1, 4};
+    TerminalService::Dependencies dependencies;
+    dependencies.byId = [terminal](int id) -> std::optional<Terminal> { if (id == 2) return terminal; return std::nullopt; };
+    dependencies.status = [status](int id) -> std::optional<TerminalStatus> { if (id == 2) return status; return std::nullopt; };
+    dependencies.flightsByTerminal = [](int) { return Json::Value(Json::arrayValue); };
+    TerminalService service(dependencies);
+    EXPECT_EQ(service.getTerminalStatus(2).availableGates, 5);
+    EXPECT_TRUE(service.getFlightsByTerminal(2).empty());
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getFlightsByTerminal(3); });
 }
 TEST(RunwayServiceTest, PreservesEmptyResultsAndFailures) {
     EXPECT_TRUE(RunwayService([] { return Json::Value(Json::arrayValue); }).getStatus().empty());

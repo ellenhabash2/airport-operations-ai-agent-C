@@ -4,6 +4,7 @@
 #include "services/gate_service.h"
 #include "services/incident_service.h"
 #include "services/runway_service.h"
+#include "services/terminal_service.h"
 #include "services/weather_service.h"
 
 namespace {
@@ -80,11 +81,52 @@ Json::Value Tools::search_flights(const Json::Value &arguments)
     });
 }
 
+Json::Value Tools::get_all_gates()
+{
+    return safely([] { return GateService{}.getAllGates(); });
+}
+
+Json::Value Tools::get_gate_by_id(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("gate_id") || !arguments["gate_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "gate_id must be an integer");
+        return GateService{}.getGateById(arguments["gate_id"].asInt());
+    });
+}
+
+Json::Value Tools::get_gate_by_number(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("gate_number") || !arguments["gate_number"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "gate_number must be a string");
+        return GateService{}.getGateByNumber(arguments["gate_number"].asString());
+    });
+}
+
 // Returns all gates and their status.
 Json::Value Tools::get_available_gates()
 {
     // Only gates whose status is AVAILABLE, matching the tool name.
-    return safely([] { return GateService{}.getAvailable(); });
+    return safely([] { return GateService{}.getAvailableGates(); });
+}
+
+Json::Value Tools::get_terminal_status(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("terminal_id") || !arguments["terminal_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "terminal_id must be an integer");
+        return terminalStatusToJson(TerminalService{}.getTerminalStatus(arguments["terminal_id"].asInt()));
+    });
+}
+
+Json::Value Tools::get_flights_by_terminal(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("terminal_id") || !arguments["terminal_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "terminal_id must be an integer");
+        return TerminalService{}.getFlightsByTerminal(arguments["terminal_id"].asInt());
+    });
 }
 
 // Returns all runways and their status.

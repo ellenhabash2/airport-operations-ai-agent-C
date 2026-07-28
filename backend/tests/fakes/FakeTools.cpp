@@ -19,6 +19,8 @@ Json::Value Tools::get_all_gates() { return fakeResult("get_all_gates"); }
 Json::Value Tools::get_gate_by_id(const Json::Value &) { return fakeResult("get_gate_by_id"); }
 Json::Value Tools::get_gate_by_number(const Json::Value &) { return fakeResult("get_gate_by_number"); }
 Json::Value Tools::get_available_gates() { return fakeResult("get_available_gates"); }
+Json::Value Tools::get_terminal_status(const Json::Value &) { return fakeResult("get_terminal_status"); }
+Json::Value Tools::get_flights_by_terminal(const Json::Value &) { return fakeResult("get_flights_by_terminal"); }
 Json::Value Tools::get_runway_status() { return fakeResult("get_runway_status"); }
 Json::Value Tools::get_latest_weather() { return fakeResult("get_latest_weather"); }
 Json::Value Tools::resolve_incident(const std::string &) { return fakeResult("resolve_incident"); }

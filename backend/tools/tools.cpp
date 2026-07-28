@@ -4,6 +4,7 @@
 #include "services/gate_service.h"
 #include "services/incident_service.h"
 #include "services/runway_service.h"
+#include "services/terminal_service.h"
 #include "services/weather_service.h"
 
 namespace {
@@ -108,6 +109,24 @@ Json::Value Tools::get_available_gates()
 {
     // Only gates whose status is AVAILABLE, matching the tool name.
     return safely([] { return GateService{}.getAvailableGates(); });
+}
+
+Json::Value Tools::get_terminal_status(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("terminal_id") || !arguments["terminal_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "terminal_id must be an integer");
+        return terminalStatusToJson(TerminalService{}.getTerminalStatus(arguments["terminal_id"].asInt()));
+    });
+}
+
+Json::Value Tools::get_flights_by_terminal(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("terminal_id") || !arguments["terminal_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "terminal_id must be an integer");
+        return TerminalService{}.getFlightsByTerminal(arguments["terminal_id"].asInt());
+    });
 }
 
 // Returns all runways and their status.

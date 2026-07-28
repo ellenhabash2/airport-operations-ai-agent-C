@@ -88,6 +88,16 @@ Json::Value ToolRegistry::getToolDefinitions()
         tool["function"]["parameters"]["required"].append("gate_number"); tools.append(tool);
     }
     tools.append(makeTool("get_available_gates", "Returns gates that are currently available (status AVAILABLE)."));
+    {
+        auto tool = makeTool("get_terminal_status", "Returns gate availability and active-flight counts for a terminal.");
+        tool["function"]["parameters"]["properties"]["terminal_id"] = property("integer", "Internal numeric terminal identifier");
+        tool["function"]["parameters"]["required"].append("terminal_id"); tools.append(tool);
+    }
+    {
+        auto tool = makeTool("get_flights_by_terminal", "Returns flights currently assigned to gates in a terminal.");
+        tool["function"]["parameters"]["properties"]["terminal_id"] = property("integer", "Internal numeric terminal identifier");
+        tool["function"]["parameters"]["required"].append("terminal_id"); tools.append(tool);
+    }
     tools.append(makeTool("get_runway_status", "Returns all runways and their status."));
     tools.append(makeTool("get_latest_weather", "Returns the latest weather report for the airport."));
 
@@ -150,6 +160,8 @@ Json::Value ToolRegistry::executeTool(const std::string &name, const Json::Value
     if (name == "get_gate_by_id")         return Tools::get_gate_by_id(args);
     if (name == "get_gate_by_number")     return Tools::get_gate_by_number(args);
     if (name == "get_available_gates")    return Tools::get_available_gates();
+    if (name == "get_terminal_status")    return Tools::get_terminal_status(args);
+    if (name == "get_flights_by_terminal") return Tools::get_flights_by_terminal(args);
     if (name == "get_runway_status")      return Tools::get_runway_status();
     if (name == "get_latest_weather")     return Tools::get_latest_weather();
     if (name == "resolve_incident")       return Tools::resolve_incident(args.get("id", "").asString());

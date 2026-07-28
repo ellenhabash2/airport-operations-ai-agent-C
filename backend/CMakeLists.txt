@@ -103,6 +103,7 @@ set(AEROMIND_SOURCES
     repositories/conversation_repository.cpp
     tools/tools.cpp
     agent/LLMClient.cpp
+    agent/LLMConfig.cpp
     agent/ToolRegistry.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp

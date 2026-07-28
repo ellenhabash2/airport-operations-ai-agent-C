@@ -26,6 +26,7 @@ add_executable(aeromind_tests
     tools/ToolRegistryTest.cpp
     fakes/FakeTools.cpp
     agent/AgentLoopTest.cpp
+    agent/LLMConfigTest.cpp
 )
 
 target_include_directories(aeromind_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -37,6 +38,7 @@ target_sources(aeromind_tests PRIVATE
     ../security/JwtService.cpp
     ../agent/ToolRegistry.cpp
     ../agent/AgentLoop.cpp
+    ../agent/LLMConfig.cpp
 )
 target_link_libraries(aeromind_tests PRIVATE
     GTest::gtest_main Drogon::Drogon

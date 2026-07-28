@@ -49,6 +49,38 @@ TEST(AgentLoopTest, ExecutesThreeToolChain) {
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
     EXPECT_EQ(result.answer, "Combined"); EXPECT_EQ(result.toolsUsed.size(), 3U);
 }
+TEST(AgentLoopTest, ResolvesFlightTerminalAndOtherFlightsWithThreeTools) {
+    Json::Value flightArgs; flightArgs["flight_number"] = "SB2101";
+    Json::Value terminalArgs; terminalArgs["terminal_id"] = 2;
+    auto flightCall = toolCall("get_flight_by_number", flightArgs);
+    auto statusCall = toolCall("get_terminal_status", terminalArgs);
+    auto flightsCall = toolCall("get_flights_by_terminal", terminalArgs);
+    flightCall["choices"][0]["message"]["tool_calls"][0]["id"] = "flight-call";
+    statusCall["choices"][0]["message"]["tool_calls"][0]["id"] = "status-call";
+    flightsCall["choices"][0]["message"]["tool_calls"][0]["id"] = "flights-call";
+    FakeLLMClient fake{{flightCall, statusCall, flightsCall,
+                        answer("SB2101 is at gate C3 in T2; five gates are available and two other flights operate there.")}};
+    std::vector<std::pair<std::string, Json::Value>> calls;
+    auto terminalExecutor = [&](const std::string &name, const Json::Value &args) {
+        calls.emplace_back(name, args);
+        Json::Value result;
+        if (name == "get_flight_by_number") { result["terminal_id"] = 2; result["gate"] = "C3"; }
+        else if (name == "get_terminal_status") result["available_gates"] = 5;
+        else result.append("SB2102");
+        return result;
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &messages, const auto &tools) { return fake.chat(messages, tools); }, terminalExecutor);
+    ASSERT_EQ(calls.size(), 3U);
+    EXPECT_EQ(calls[0].first, "get_flight_by_number"); EXPECT_EQ(calls[0].second["flight_number"], "SB2101");
+    EXPECT_EQ(calls[1].first, "get_terminal_status"); EXPECT_EQ(calls[1].second["terminal_id"], 2);
+    EXPECT_EQ(calls[2].first, "get_flights_by_terminal"); EXPECT_EQ(calls[2].second["terminal_id"], 2);
+    ASSERT_EQ(result.toolsUsed.size(), 3U);
+    EXPECT_EQ(result.toolsUsed[0], "get_flight_by_number");
+    EXPECT_EQ(result.toolsUsed[1], "get_terminal_status");
+    EXPECT_EQ(result.toolsUsed[2], "get_flights_by_terminal");
+    EXPECT_NE(result.answer.find("SB2101"), std::string::npos);
+}
 TEST(AgentLoopTest, SendsMalformedArgumentsBackAsToolError) {
     FakeLLMClient fake{{toolCall("known", Json::Value("{broken")), answer("Recovered")}};
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),

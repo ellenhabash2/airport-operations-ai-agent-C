@@ -1,4 +1,5 @@
 import { SendHorizontal } from "lucide-react";
+import PropTypes from "prop-types";
 
 export default function ChatInput({message,setMessage,handleSend,}) {
 
@@ -38,3 +39,9 @@ export default function ChatInput({message,setMessage,handleSend,}) {
     );
 
 }
+
+ChatInput.propTypes = {
+    message: PropTypes.string.isRequired,
+    setMessage: PropTypes.func.isRequired,
+    handleSend: PropTypes.func.isRequired,
+};

@@ -4,6 +4,7 @@ import {
     PlaneTakeoff,
     CloudSun,
 } from "lucide-react";
+import PropTypes from "prop-types";
 
 const questions = [
     {
@@ -85,3 +86,7 @@ export default function SuggestedQuestions({onQuestionClick,}) {
     );
 
 }
+
+SuggestedQuestions.propTypes = {
+    onQuestionClick: PropTypes.func.isRequired,
+};

@@ -1,154 +1,231 @@
-# AeroMind Database
+# AeroMind database
 
-The AeroMind foundation uses PostgreSQL 16 and initializes from `sql/init.sql` and `sql/seed.sql`.
+## Purpose and initialization
 
-## Seed Volume
+PostgreSQL stores simulated airport operations, users, and persistent agent conversations. On the first creation of the Compose volume, PostgreSQL runs `sql/init.sql` and then `sql/seed.sql`. These scripts use `CREATE TABLE IF NOT EXISTS`, but seed inserts are intended for a new empty volume rather than repeated manual execution. Existing volumes are not destroyed during normal startup.
 
-| Entity | Count |
-| --- | ---: |
-| Airlines | 5 |
-| Aircraft | 25 |
-| Terminals | 3 |
-| Gates | 36 |
-| Runways | 3 |
-| Flights | 150 |
-| Crew | 20 |
-| Weather reports | 30 |
-| Incidents | 30 |
+The development database defaults to `aeromind`. The automated C++ suite currently uses fakes and unit-level components; it does not create or reset a separate test database.
 
-## Tables
+## Entity relationships
 
-### users
+```mermaid
+erDiagram
+    USERS ||--o{ CONVERSATIONS : owns
+    CONVERSATIONS ||--o{ MESSAGES : contains
+    AIRLINES ||--o{ AIRCRAFT : operates
+    AIRLINES ||--o{ FLIGHTS : schedules
+    AIRCRAFT ||--o{ FLIGHTS : assigned
+    TERMINALS ||--o{ GATES : contains
+    GATES o|--o{ FLIGHTS : assigned
+    RUNWAYS o|--o{ FLIGHTS : assigned
+    FLIGHTS ||--o{ FLIGHT_CREW : has
+    CREW ||--o{ FLIGHT_CREW : serves
 
-Stores accounts for future authenticated access.
+    USERS {
+        serial id PK
+        varchar username UK
+        varchar email UK
+        text password_hash
+        varchar role
+        timestamp created_at
+    }
+    CONVERSATIONS {
+        serial id PK
+        integer user_id FK
+        varchar title
+        timestamp created_at
+    }
+    MESSAGES {
+        serial id PK
+        integer conversation_id FK
+        varchar role
+        text content
+        timestamp created_at
+    }
+    FLIGHTS {
+        serial id PK
+        integer airline_id FK
+        integer aircraft_id FK
+        integer gate_id FK
+        integer runway_id FK
+        varchar status
+    }
+```
 
-Key columns: `id`, `username`, `email`, `password_hash`, `role`, `created_at`, `updated_at`.
+## Table inventory
 
-Constraints: unique username, unique email.
+### `users`
 
-### airlines
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `username` | VARCHAR(80) | No | Unique login/display name |
+| `email` | VARCHAR(160) | No | Unique normalized login email |
+| `password_hash` | TEXT | No | bcrypt hash; never plaintext |
+| `role` | VARCHAR(40) | No, `operator` | Stored role label |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Stores operating carriers.
+Deleting a user cascades to conversations and their messages.
 
-Key columns: `id`, `name`, `iata_code`, `icao_code`, `country`, `created_at`.
+### `airlines`
 
-Constraints: unique IATA and ICAO codes.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `name` | VARCHAR(120) | No | Airline name |
+| `iata_code` | VARCHAR(3) | No | Unique IATA code |
+| `icao_code` | VARCHAR(4) | No | Unique ICAO code |
+| `country` | VARCHAR(80) | Yes | Home country |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-### aircraft
+Airline deletion is restricted while aircraft or flights reference it.
 
-Stores aircraft assigned to airlines.
+### `aircraft`
 
-Key columns: `id`, `registration_number`, `aircraft_type`, `airline_id`, `status`, `created_at`.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `registration_number` | VARCHAR(20) | No | Unique registration |
+| `aircraft_type` | VARCHAR(120) | No | Model/type |
+| `airline_id` | INTEGER | No | FK to `airlines`, delete restricted |
+| `status` | VARCHAR(40) | No, `ACTIVE` | `ACTIVE`, `MAINTENANCE`, or `RETIRED` |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Foreign key: `airline_id` -> `airlines.id`.
+### `terminals`
 
-Constraints: unique registration number, checked aircraft status.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `name` | VARCHAR(80) | No | Unique terminal name |
+| `code` | VARCHAR(8) | No | Unique short code |
+| `capacity` | INTEGER | No | Must be greater than zero |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-### terminals
+### `gates`
 
-Stores airport terminal metadata.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `gate_number` | VARCHAR(10) | No | Gate label |
+| `terminal_id` | INTEGER | No | FK to `terminals`, delete restricted |
+| `status` | VARCHAR(40) | No, `AVAILABLE` | `AVAILABLE`, `OCCUPIED`, `MAINTENANCE`, or `CLOSED` |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Key columns: `id`, `name`, `code`, `capacity`, `created_at`.
+`gate_number` and `terminal_id` are unique together. Flight gate references become null when a gate is deleted.
 
-Constraints: unique name, unique code, positive capacity.
+### `runways`
 
-### gates
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `runway_code` | VARCHAR(10) | No | Unique runway designation |
+| `status` | VARCHAR(40) | No, `OPERATIONAL` | `OPERATIONAL`, `MAINTENANCE`, or `CLOSED` |
+| `length_meters` | INTEGER | No | Must be greater than zero |
+| `surface` | VARCHAR(40) | No, `ASPHALT` | Surface material |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Stores gates within terminals.
+Flight runway references become null when a runway is deleted.
 
-Key columns: `id`, `gate_number`, `terminal_id`, `status`, `created_at`.
+### `flights`
 
-Foreign key: `terminal_id` -> `terminals.id`.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `flight_number` | VARCHAR(20) | No | Operational flight number |
+| `airline_id` | INTEGER | No | FK to airline, delete restricted |
+| `aircraft_id` | INTEGER | No | FK to aircraft, delete restricted |
+| `gate_id` | INTEGER | Yes | FK to gate, set null on deletion |
+| `runway_id` | INTEGER | Yes | FK to runway, set null on deletion |
+| `origin` / `destination` | VARCHAR(3) | No | Three uppercase letters |
+| `departure_time` / `arrival_time` | TIMESTAMP | No | Arrival must follow departure |
+| `status` | VARCHAR(40) | No, `SCHEDULED` | `SCHEDULED`, `BOARDING`, `IN_FLIGHT`, `DELAYED`, `CANCELLED`, or `LANDED` |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Constraints: unique `(gate_number, terminal_id)`, checked gate status.
+### `crew`
 
-### runways
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `full_name` | VARCHAR(150) | No | Crew member name |
+| `role` | VARCHAR(60) | No | Operational role |
+| `employee_code` | VARCHAR(24) | No | Unique employee code |
+| `availability_status` | VARCHAR(40) | No, `AVAILABLE` | `AVAILABLE`, `ON_DUTY`, `RESTING`, or `UNAVAILABLE` |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-Stores runway configuration and operational state.
+### `flight_crew`
 
-Key columns: `id`, `runway_code`, `status`, `length_meters`, `surface`, `created_at`.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `flight_id` | INTEGER | No | FK to flight, cascades on flight deletion |
+| `crew_id` | INTEGER | No | FK to crew, delete restricted |
+| `assigned_role` | VARCHAR(60) | No | Role on this flight |
+| `created_at` | TIMESTAMP | No, current time | Assignment timestamp |
 
-Constraints: unique runway code, positive length, checked runway status.
+The composite primary key is (`flight_id`, `crew_id`).
 
-### flights
+### `weather_reports`
 
-Central operational flight table.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `condition` | VARCHAR(100) | No | Weather summary |
+| `visibility_km` | NUMERIC(5,2) | No | Non-negative visibility |
+| `wind_speed_kmh` | NUMERIC(6,2) | No | Non-negative speed |
+| `wind_direction` | VARCHAR(3) | No, `VRB` | Direction abbreviation |
+| `temperature_c` | NUMERIC(5,2) | No | Temperature |
+| `pressure_hpa` | NUMERIC(7,2) | No, `1013.25` | Pressure |
+| `created_at` | TIMESTAMP | No, current time | Observation timestamp |
 
-Key columns: `id`, `flight_number`, `airline_id`, `aircraft_id`, `gate_id`, `runway_id`, `origin`, `destination`, `departure_time`, `arrival_time`, `status`, `created_at`.
+### `incidents`
 
-Foreign keys:
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `title` | VARCHAR(200) | No | Short title |
+| `description` | TEXT | No | Operational detail |
+| `severity` | VARCHAR(40) | No | `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` |
+| `location` | VARCHAR(150) | Yes | Airport location |
+| `status` | VARCHAR(40) | No, `OPEN` | `OPEN`, `INVESTIGATING`, or `RESOLVED` |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
+| `resolved_at` | TIMESTAMP | Yes | Resolution timestamp |
 
-- `airline_id` -> `airlines.id`
-- `aircraft_id` -> `aircraft.id`
-- `gate_id` -> `gates.id`
-- `runway_id` -> `runways.id`
+### `conversations`
 
-Constraints: airport-code format checks, arrival after departure, checked flight status.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `user_id` | INTEGER | No | FK to `users`, delete cascade |
+| `title` | VARCHAR(200) | No, default title | Conversation label |
+| `created_at` | TIMESTAMP | No, current time | Creation timestamp |
 
-### crew
+### `messages`
 
-Stores crew and operational staff.
+| Column | Type | Nullable/default | Constraint and purpose |
+| --- | --- | --- | --- |
+| `id` | SERIAL | No | Primary key |
+| `conversation_id` | INTEGER | No | FK to conversation, delete cascade |
+| `role` | VARCHAR(40) | No | `user`, `assistant`, `system`, or `tool` |
+| `content` | TEXT | No | Serialized visible message content |
+| `created_at` | TIMESTAMP | No, current time | Message timestamp |
 
-Key columns: `id`, `full_name`, `role`, `employee_code`, `availability_status`, `created_at`.
-
-Constraints: unique employee code, checked availability status.
-
-### flight_crew
-
-Join table assigning crew to flights.
-
-Key columns: `flight_id`, `crew_id`, `assigned_role`, `created_at`.
-
-Foreign keys:
-
-- `flight_id` -> `flights.id`
-- `crew_id` -> `crew.id`
-
-Primary key: `(flight_id, crew_id)`.
-
-### weather_reports
-
-Stores airport weather observations.
-
-Key columns: `id`, `condition`, `visibility_km`, `wind_speed_kmh`, `wind_direction`, `temperature_c`, `pressure_hpa`, `created_at`.
-
-Constraints: non-negative visibility and wind speed.
-
-### incidents
-
-Stores operational incidents and alerts.
-
-Key columns: `id`, `title`, `description`, `severity`, `location`, `status`, `created_at`, `resolved_at`.
-
-Constraints: checked severity and incident status.
-
-### conversations
-
-Stores future AI chat sessions.
-
-Key columns: `id`, `user_id`, `title`, `created_at`.
-
-Foreign key: `user_id` -> `users.id`.
-
-### messages
-
-Stores future chat history messages.
-
-Key columns: `id`, `conversation_id`, `role`, `content`, `created_at`.
-
-Foreign key: `conversation_id` -> `conversations.id`.
-
-Constraints: checked message role.
+Current agent persistence writes visible user and assistant turns. Message retrieval joins through the owning conversation and returns chronological order.
 
 ## Indexes
 
-Operational indexes are defined for:
+- `idx_users_email` on `users(email)` (in addition to the unique index)
+- `idx_aircraft_airline` on `aircraft(airline_id)`
+- `idx_gates_terminal_status` on `gates(terminal_id, status)`
+- `idx_flights_airline`, `idx_flights_aircraft`, and `idx_flights_gate`
+- `idx_flights_status_departure` on `(status, departure_time)` for delayed/status queries
+- `idx_flight_crew_crew` on `flight_crew(crew_id)`
+- `idx_weather_created` descending on weather timestamps
+- `idx_incidents_status_created` on status and descending creation time
+- `idx_messages_conversation_created` for chronological history reads
 
-- User email lookup
-- Aircraft by airline
-- Gates by terminal and status
-- Flights by airline, aircraft, gate, status, and departure time
-- Crew assignments by crew member
-- Latest weather reports
-- Incident status and recency
-- Conversation message history
+PostgreSQL automatically supplies indexes for primary and unique constraints. The schema has no migration framework; changes are maintained in `init.sql` for fresh academic/demo environments.
+
+## Seed data
+
+`seed.sql` provides two demo users with bcrypt hashes, five airlines, 25 aircraft, three terminals, 36 gates, three runways, 150 schedule-relative flights, 20 crew, assignments for 40 flights, 30 weather reports, 30 incidents, and two example conversations. Flight times are anchored to initialization time and status is derived from schedule rules. This keeps delayed, boarding, scheduled, cancelled, in-flight, and landed scenarios useful when a fresh database is created.
+
+The data is realistic simulation, not a live operational feed. Predictability avoids third-party availability, quota, cost, and safety concerns.

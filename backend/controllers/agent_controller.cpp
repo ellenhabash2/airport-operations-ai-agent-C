@@ -386,6 +386,16 @@ void AgentController::getConversationMessages(
             return;
         }
 
+        if (!ConversationRepository::conversationBelongsToUser(
+                conversationId,
+                userId))
+        {
+            callback(createJsonErrorResponse(
+                "You do not have access to this conversation",
+                k403Forbidden));
+            return;
+        }
+
         Json::Value response;
         response["status"] = "success";
         response["conversation_id"] = conversationId;

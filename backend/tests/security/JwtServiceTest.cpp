@@ -28,7 +28,9 @@ TEST_F(JwtServiceTest, ExtractsUserId)
 TEST_F(JwtServiceTest, RejectsTamperedToken)
 {
     auto token = JwtService::generateToken("42", "operator@example.com");
-    token.back() = token.back() == 'a' ? 'b' : 'a';
+    const auto signatureStart = token.rfind('.') + 1;
+    ASSERT_LT(signatureStart, token.size());
+    token[signatureStart] = token[signatureStart] == 'a' ? 'b' : 'a';
     EXPECT_FALSE(JwtService::verifyToken(token));
     EXPECT_TRUE(JwtService::getUserId(token).empty());
 }

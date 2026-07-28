@@ -3,9 +3,8 @@ import ChatHeader from "../components/chat/ChatHeader";
 import ChatMessages from "../components/chat/ChatMessages";
 import ChatInput from "../components/chat/ChatInput";
 import SuggestedQuestions from "../components/chat/SuggestedQuestions";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../services/api";
-import { useEffect } from "react";
 
 import "../styles/chat.css";
 
@@ -29,9 +28,52 @@ export default function ChatPage() {
     const [conversations, setConversations] = useState([]);
     const [selectedConversationId, setSelectedConversationId] =useState(null);
 
-    useEffect(() => {
-    loadConversations();
+    const loadConversation = useCallback(async (selectedId) => {
+        try {
+            const response = await api.get(
+                `/agent/conversations/${selectedId}/messages`
+            );
+
+            setConversationId(selectedId);
+            setSelectedConversationId(selectedId);
+            sessionStorage.setItem("selectedConversationId", selectedId);
+
+            const formattedMessages = response.data.messages.map((storedMessage) => ({
+                id: storedMessage.id,
+                sender: storedMessage.role,
+                text: storedMessage.content,
+            }));
+
+            setMessages(formattedMessages);
+        } catch {
+            setMessages((previous) => [
+                ...previous,
+                {
+                    id: Date.now(),
+                    sender: "assistant",
+                    text: "Unable to load this conversation. Please try again.",
+                },
+            ]);
+        }
     }, []);
+
+    const loadConversations = useCallback(async () => {
+        try {
+            const response = await api.get("/agent/history");
+            setConversations(response.data.conversations);
+
+            const savedConversationId = sessionStorage.getItem("selectedConversationId");
+            if (savedConversationId) {
+                await loadConversation(savedConversationId);
+            }
+        } catch {
+            setConversations([]);
+        }
+    }, [loadConversation]);
+
+    useEffect(() => {
+        loadConversations();
+    }, [loadConversations]);
 
     async function handleSend(question = null) {
 
@@ -89,8 +131,6 @@ export default function ChatPage() {
             ]);
 
         } catch (error) {
-
-            console.error(error);
 
             let errorMessage =
                 "Sorry, I couldn't process your request. Please try again.";
@@ -154,65 +194,6 @@ export default function ChatPage() {
         );
 
     }
-
-    async function loadConversations() {
-
-    try {
-
-        const response = await api.get("/agent/history");
-
-        setConversations(response.data.conversations);
-        console.log(response.data.conversations);
-        
-        const savedConversationId =sessionStorage.getItem("selectedConversationId");
-
-        if (savedConversationId) {
-            loadConversation(savedConversationId);
-        }
-
-    }
-    catch (error) {
-
-        console.error("Failed to load conversations:", error);
-
-    }
-
-    }
-
-    async function loadConversation(conversationId) {
-
-    try {
-
-        const response = await api.get(
-            `/agent/conversations/${conversationId}/messages`
-        );
-
-        console.log(response.data.messages);
-
-        setConversationId(conversationId);
-        setSelectedConversationId(conversationId);
-        sessionStorage.setItem(
-            "selectedConversationId",
-            conversationId
-        );
-
-        const formattedMessages = response.data.messages.map(message => ({
-            id: message.id,
-            sender: message.role,
-            text: message.content,
-        }));
-
-        setMessages(formattedMessages);
-
-    }
-    catch (error) {
-
-        console.error("Failed to load conversation:", error);
-
-    }
-
-}
-    
 
     return (
         <div className="chat-page">

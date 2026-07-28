@@ -21,7 +21,7 @@ Json::Value gateRowToJson(const pqxx::row &row)
     return gate;
 }
 
-Json::Value queryGates(const std::string &whereClause)
+Json::Value queryGates(const std::string &whereClause, const pqxx::params &params = {})
 {
     Json::Value gates(Json::arrayValue);
 
@@ -30,8 +30,7 @@ Json::Value queryGates(const std::string &whereClause)
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
 
-        pqxx::result res = txn.exec(std::string(kGateColumns) + whereClause +
-                                    "ORDER BY t.code, g.gate_number");
+        pqxx::result res = txn.exec_params(std::string(kGateColumns) + whereClause, params);
 
         for (auto row : res)
         {
@@ -50,25 +49,50 @@ Json::Value queryGates(const std::string &whereClause)
 }
 }
 
-Json::Value GateRepository::getAllGates()
+Json::Value GateRepository::findAll()
 {
-    return queryGates("");
+    return queryGates("ORDER BY t.code, g.gate_number, g.id");
 }
 
-Json::Value GateRepository::getAvailableGates()
+Json::Value GateRepository::findAvailable()
 {
-    return queryGates("WHERE g.status = 'AVAILABLE' ");
+    return queryGates("WHERE g.status = 'AVAILABLE' ORDER BY t.code, g.gate_number, g.id");
 }
 
-Json::Value GateRepository::getGateByNumber(const std::string &gateNumber)
+Json::Value GateRepository::findById(int gateId)
+{
+    pqxx::params params; params.append(gateId);
+    auto gates = queryGates("WHERE g.id = $1", params);
+    Json::Value result; result["found"] = !gates.empty();
+    if (!gates.empty()) result["gate"] = gates[0];
+    return result;
+}
+
+Json::Value GateRepository::findByNumber(const std::string &gateNumber)
+{
+    pqxx::params params; params.append(gateNumber);
+    auto gates = queryGates(
+        "WHERE REGEXP_REPLACE(LOWER(g.gate_number), '^([a-z]+)0+', '\\1') = "
+        "REGEXP_REPLACE(LOWER($1), '^([a-z]+)0+', '\\1') "
+        "ORDER BY t.code, g.id LIMIT 1", params);
+    Json::Value result; result["found"] = !gates.empty();
+    if (!gates.empty()) result["gate"] = gates[0];
+    return result;
+}
+
+Json::Value GateRepository::findByTerminal(int terminalId)
+{
+    pqxx::params params; params.append(terminalId);
+    return queryGates("WHERE g.terminal_id = $1 ORDER BY g.gate_number, g.id", params);
+}
+
+bool GateRepository::updateAvailability(int gateId, bool available)
 {
     auto conn = DatabaseManager::getInstance().getConnection();
     pqxx::work txn(*conn);
-    auto rows = txn.exec_params(std::string(kGateColumns) +
-        "WHERE REGEXP_REPLACE(LOWER(g.gate_number), '^([a-z]+)0+', '\\1') = "
-        "REGEXP_REPLACE(LOWER($1), '^([a-z]+)0+', '\\1') ORDER BY g.id LIMIT 1", gateNumber);
+    auto rows = txn.exec_params(
+        "UPDATE gates SET status = $2 WHERE id = $1 RETURNING id",
+        gateId, available ? "AVAILABLE" : "OCCUPIED");
     txn.commit();
-    Json::Value result; result["found"] = !rows.empty();
-    if (!rows.empty()) result["gate"] = gateRowToJson(rows[0]);
-    return result;
+    return !rows.empty();
 }

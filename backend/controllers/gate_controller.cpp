@@ -2,13 +2,13 @@
 #include <iostream>
 #include <drogon/HttpAppFramework.h>
 #include <json/json.h>
-#include "repositories/gate_repository.h"
+#include "services/gate_service.h"
 
 void GateController::getGates(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {
-        auto gates = GateRepository::getAllGates();
+        auto gates = GateService{}.getAll();
         
         Json::Value response;
         response["status"] = "success";

@@ -1,23 +1,15 @@
 ﻿#include "tools.h"
-#include "repositories/flight_repository.h"
-#include "repositories/incident_repository.h"
-#include "repositories/gate_repository.h"
-#include "repositories/runway_repository.h"
-#include "repositories/weather_repository.h"
-#include <array>
-#include <algorithm>
+#include "services/domain_error.h"
+#include "services/flight_service.h"
+#include "services/gate_service.h"
+#include "services/incident_service.h"
+#include "services/runway_service.h"
+#include "services/weather_service.h"
 
-namespace
-{
-// severity must match the incidents_severity_check CHECK constraint in the
-// schema. The REST endpoint already validates this, but the agent's
-// create_incident tool passes the model's raw value straight to PostgreSQL,
-// so an invalid severity (e.g. "VERY_HIGH") would fail the CHECK and turn the
-// whole /agent/query request into a 500. Validate here instead.
-bool isValidSeverity(const std::string &severity)
-{
-    static constexpr std::array<const char *, 4> allowed = {"LOW", "MEDIUM", "HIGH", "CRITICAL"};
-    return std::find(allowed.begin(), allowed.end(), severity) != allowed.end();
+namespace {
+template <typename Operation> Json::Value safely(Operation operation) {
+    try { return operation(); }
+    catch (const DomainError &error) { Json::Value value; value["error"] = error.what(); value["code"] = error.code(); return value; }
 }
 }
 
@@ -26,7 +18,7 @@ bool isValidSeverity(const std::string &severity)
 // Returns all flights currently delayed.
 Json::Value Tools::find_delayed_flights()
 {
-    return FlightRepository::getDelayedFlights();
+    return safely([] { return FlightService{}.getDelayed(); });
 }
 
 // Returns airport operational incidents.
@@ -34,38 +26,48 @@ Json::Value Tools::get_active_incidents()
 {
     // Only incidents that still need attention (OPEN or INVESTIGATING),
     // matching the tool name the model sees.
-    return IncidentRepository::getActiveIncidents();
+    return safely([] { return IncidentService{}.getActive(); });
 }
 
 // Returns all flights.
 Json::Value Tools::get_all_flights()
 {
-    return FlightRepository::getAllFlights();
+    return safely([] { return FlightService{}.getAll(); });
 }
 
 // Returns full details of a single flight by its id.
 Json::Value Tools::get_flight_details(const std::string &id)
 {
-    return FlightRepository::getFlightById(id);
+    try { Json::Value result; result["found"] = true; result["flight"] = FlightService{}.getById(id); return result; }
+    catch (const DomainError &error) {
+        Json::Value result;
+        if (error.kind() == DomainErrorKind::NotFound || error.kind() == DomainErrorKind::Validation) {
+            result["found"] = false;
+            result["message"] = error.kind() == DomainErrorKind::Validation
+                ? "Flight id must be a positive integer." : "No flight exists with id " + id + ".";
+            return result;
+        }
+        result["error"] = error.what(); result["code"] = error.code(); return result;
+    }
 }
 
 // Returns all gates and their status.
 Json::Value Tools::get_available_gates()
 {
     // Only gates whose status is AVAILABLE, matching the tool name.
-    return GateRepository::getAvailableGates();
+    return safely([] { return GateService{}.getAvailable(); });
 }
 
 // Returns all runways and their status.
 Json::Value Tools::get_runway_status()
 {
-    return RunwayRepository::getAllRunways();
+    return safely([] { return RunwayService{}.getStatus(); });
 }
 
 // Returns the latest weather report.
 Json::Value Tools::get_latest_weather()
 {
-    return WeatherRepository::getLatestWeather();
+    return safely([] { return WeatherService{}.getLatest(); });
 }
 
 // ---- Action tools ----
@@ -73,27 +75,19 @@ Json::Value Tools::get_latest_weather()
 // Resolves an incident by id (applies the already-resolved business rule).
 Json::Value Tools::resolve_incident(const std::string &id)
 {
-    return IncidentRepository::resolveIncident(id);
+    try { Json::Value result; result["found"] = true; result["already_resolved"] = false;
+        result["incident"] = IncidentService{}.resolve(id); return result; }
+    catch (const DomainError &error) {
+        Json::Value result;
+        if (error.kind() == DomainErrorKind::NotFound || error.kind() == DomainErrorKind::Validation) { result["found"] = false; return result; }
+        if (error.kind() == DomainErrorKind::Conflict) { result["found"] = true; result["already_resolved"] = true; return result; }
+        result["error"] = error.what(); result["code"] = error.code(); return result;
+    }
 }
 
 // Creates a new incident.
 Json::Value Tools::create_incident(const std::string &title, const std::string &description,
                                    const std::string &severity, const std::string &location)
 {
-    // Validate before touching the database so a bad value from the model
-    // becomes a clear tool error the agent can explain, not a 500.
-    if (title.empty() || description.empty())
-    {
-        Json::Value err;
-        err["error"] = "title and description are required and must not be empty.";
-        return err;
-    }
-    if (!isValidSeverity(severity))
-    {
-        Json::Value err;
-        err["error"] = "severity must be one of: LOW, MEDIUM, HIGH, CRITICAL.";
-        return err;
-    }
-
-    return IncidentRepository::createIncident(title, description, severity, location);
+    return safely([&] { return IncidentService{}.create(title, description, severity, location); });
 }

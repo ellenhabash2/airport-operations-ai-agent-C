@@ -2,25 +2,14 @@
 #include <drogon/HttpAppFramework.h>
 #include <iostream>
 #include <json/json.h>
-#include "repositories/incident_repository.h"
-#include <array>
-#include <algorithm>
-#include <cctype>
-
-namespace
-{
-bool isValidSeverity(const std::string &severity)
-{
-    static constexpr std::array<const char *, 4> allowed = {"LOW", "MEDIUM", "HIGH", "CRITICAL"};
-    return std::find(allowed.begin(), allowed.end(), severity) != allowed.end();
-}
-}
+#include "services/domain_error.h"
+#include "services/incident_service.h"
 
 void IncidentController::getIncidents(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {
-        auto incidents = IncidentRepository::getAllIncidents();
+        auto incidents = IncidentService{}.getAll();
 
         Json::Value response;
         response["status"] = "success";
@@ -64,18 +53,7 @@ void IncidentController::createIncident(const HttpRequestPtr &req, std::function
         std::string severity = (*json)["severity"].asString();
         std::string location = (*json).isMember("location") ? (*json)["location"].asString() : "";
 
-        if (title.empty() || description.empty() || !isValidSeverity(severity))
-        {
-            Json::Value error_response;
-            error_response["error"] = "Invalid incident payload";
-
-            auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-            http_response->setStatusCode(k400BadRequest);
-            callback(http_response);
-            return;
-        }
-
-        auto incident = IncidentRepository::createIncident(title, description, severity, location);
+        auto incident = IncidentService{}.create(title, description, severity, location);
 
         Json::Value response;
         response["status"] = "success";
@@ -84,6 +62,11 @@ void IncidentController::createIncident(const HttpRequestPtr &req, std::function
         auto http_response = HttpResponse::newHttpJsonResponse(response);
         http_response->setStatusCode(k201Created);
         callback(http_response);
+    }
+    catch (const DomainError &e)
+    {
+        Json::Value error; error["error"] = e.what();
+        auto response = HttpResponse::newHttpJsonResponse(error); response->setStatusCode(k400BadRequest); callback(response);
     }
     catch (const std::exception &e)
     {
@@ -101,53 +84,24 @@ void IncidentController::resolveIncident(const HttpRequestPtr &req, std::functio
 {
     try
     {
-        // Validate the id is a positive integer
-        if (id.empty() || !std::all_of(id.begin(), id.end(), [](unsigned char ch) { return std::isdigit(ch); }))
-        {
-            Json::Value error_response;
-            error_response["error"] = "Incident ID must be a positive integer";
-
-            auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-            http_response->setStatusCode(k400BadRequest);
-            callback(http_response);
-            return;
-        }
-
-        auto result = IncidentRepository::resolveIncident(id);
-
-        // Incident does not exist
-        if (!result["found"].asBool())
-        {
-            Json::Value error_response;
-            error_response["error"] = "Incident not found";
-
-            auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-            http_response->setStatusCode(k404NotFound);
-            callback(http_response);
-            return;
-        }
-
-        // Business rule: already resolved
-        if (result["already_resolved"].asBool())
-        {
-            Json::Value error_response;
-            error_response["error"] = "Incident is already resolved";
-
-            auto http_response = HttpResponse::newHttpJsonResponse(error_response);
-            http_response->setStatusCode(k409Conflict);
-            callback(http_response);
-            return;
-        }
-
-        // Success
+        auto incident = IncidentService{}.resolve(id);
         Json::Value response;
         response["status"] = "success";
         response["message"] = "Incident resolved";
-        response["data"] = result["incident"];
+        response["data"] = incident;
 
         auto http_response = HttpResponse::newHttpJsonResponse(response);
         http_response->setStatusCode(k200OK);
         callback(http_response);
+    }
+    catch (const DomainError &e)
+    {
+        Json::Value error; error["error"] = e.what();
+        auto response = HttpResponse::newHttpJsonResponse(error);
+        HttpStatusCode status = k400BadRequest;
+        if (e.kind() == DomainErrorKind::NotFound) status = k404NotFound;
+        else if (e.kind() == DomainErrorKind::Conflict) status = k409Conflict;
+        response->setStatusCode(status); callback(response);
     }
     catch (const std::exception &e)
     {

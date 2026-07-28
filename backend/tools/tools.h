@@ -4,7 +4,7 @@
 
 // AeroMind AI Agent function tools.
 // Each static method is one tool the agent can call.
-// Tools wrap the repository layer and return JSON results.
+// Tools adapt Gemini arguments/results around shared domain services.
 class Tools
 {
 public:

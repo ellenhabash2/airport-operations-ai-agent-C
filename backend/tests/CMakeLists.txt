@@ -28,6 +28,7 @@ add_executable(aeromind_tests
     agent/AgentLoopTest.cpp
     agent/LLMConfigTest.cpp
     agent/LLMClientTest.cpp
+    services/ServiceTest.cpp
 )
 
 target_include_directories(aeromind_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -41,10 +42,25 @@ target_sources(aeromind_tests PRIVATE
     ../agent/AgentLoop.cpp
     ../agent/LLMConfig.cpp
     ../agent/LLMClient.cpp
+    ../services/flight_service.cpp
+    ../services/gate_service.cpp
+    ../services/runway_service.cpp
+    ../services/incident_service.cpp
+    ../services/weather_service.cpp
+    ../services/conversation_service.cpp
+    ../services/agent_service.cpp
+    ../repositories/flight_repository.cpp
+    ../repositories/gate_repository.cpp
+    ../repositories/runway_repository.cpp
+    ../repositories/incident_repository.cpp
+    ../repositories/weather_repository.cpp
+    ../repositories/conversation_repository.cpp
+    ../database/database_manager.cpp
 )
 target_link_libraries(aeromind_tests PRIVATE
     GTest::gtest_main Drogon::Drogon
     jwt-cpp::jwt-cpp bcrypt crypt
+    pqxx ${PostgreSQL_LIBRARIES}
 )
 if(TARGET Jsoncpp_lib)
     target_link_libraries(aeromind_tests PRIVATE Jsoncpp_lib)

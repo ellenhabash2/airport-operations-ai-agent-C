@@ -2,13 +2,13 @@
 #include <iostream>
 #include <drogon/HttpAppFramework.h>
 #include <json/json.h>
-#include "repositories/runway_repository.h"
+#include "services/runway_service.h"
 
 void RunwayController::getRunways(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {
-        auto runways = RunwayRepository::getAllRunways();
+        auto runways = RunwayService{}.getStatus();
         
         Json::Value response;
         response["status"] = "success";

@@ -95,6 +95,7 @@ set(AEROMIND_SOURCES
     controllers/health_controller.cpp
     controllers/flight_controller.cpp
     controllers/gate_controller.cpp
+    controllers/terminal_controller.cpp
     controllers/runway_controller.cpp
     controllers/incident_controller.cpp
     controllers/weather_controller.cpp

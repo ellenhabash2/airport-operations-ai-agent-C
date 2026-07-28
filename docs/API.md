@@ -129,6 +129,23 @@ Missing, malformed, invalid, or expired tokens return `401`. Unexpected database
 - **Success:** `200` with `status` and `data` array.
 - **Failure:** `500` unexpected database failure.
 
+### Available and individual gates
+
+- **Routes:** `GET /gates/available`, `GET /gates/{id}`, and `GET /gates/number/{gateNumber}`
+- **Authentication:** None
+- **Success:** `200` with the existing `status`/`data` envelope. Empty lists are valid.
+- **Validation:** IDs must be positive integers; gate numbers are trimmed, limited to 10 characters, and matched case-insensitively. Established `A03`/`A3` normalization remains supported.
+- **Failures:** `400` invalid input; `404` missing gate; `500` unexpected database failure.
+
+## Terminals
+
+- `GET /terminals` lists terminals; an empty array is valid.
+- `GET /terminals/{id}` returns one terminal.
+- `GET /terminals/{id}/status` returns `total_gates`, `available_gates`, `occupied_gates`, `non_operational_gates`, and `active_flights` with the terminal object.
+- `GET /terminals/{id}/flights` returns every flight assigned to a gate in the terminal; an empty array is valid.
+
+All terminal routes are unauthenticated, matching the operational read policy. Success uses the `status`/`data` envelope. Invalid IDs return `400`, missing terminals return `404`, and unexpected failures return `500`.
+
 ## Runways
 
 ### List runways

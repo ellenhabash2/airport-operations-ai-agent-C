@@ -21,14 +21,16 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The verified suite contains 38 CTest cases:
+Phase 3 adds gate ID/number validation, availability rules, terminal lookup/status/empty-flight behavior, gate and terminal tool schemas, and a deterministic three-tool flight-terminal scenario. Fake services/tools are used; no Gemini request occurs.
+
+The exact final CTest count is recorded by the final verification run rather than maintained as a historical total here.
 
 | Group | Cases | Behavior |
 | --- | ---: | --- |
 | `PasswordHasherTest` | 4 | Non-plaintext bcrypt output, correct/incorrect passwords, unique salts |
 | `JwtServiceTest` | 6 | Generation, user ID, tampering, wrong signature, expiration, required secret |
-| `ToolRegistryTest` | 4 | Nine unique tools, schemas, unknown dispatch, fake execution |
-| `AgentLoopTest` | 9 | No-tool response, one/three tools, invalid arguments, unknown tool, provider failure, maximum iterations, tool-call ID/order preservation |
+| `ToolRegistryTest` | current suite | Unique tools, flight/gate/terminal schemas, unknown dispatch, fake execution |
+| `AgentLoopTest` | current suite | No-tool response, multi-tool chains including flight/terminal reasoning, invalid arguments, provider failure, bounds, and tool-call ID/order preservation |
 | `LLMConfigTest` | 3 | Gemini defaults, environment overrides, HTTPS requirement |
 | `LLMClientTest` and parameterized status cases | 12 | Request serialization, text/tool parsing, auth header, retries, transport failures, malformed responses, offline configuration, 400/401/403/404 mapping |
 

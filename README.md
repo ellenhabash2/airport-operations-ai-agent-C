@@ -77,6 +77,11 @@ The frontend never contacts Gemini directly. Provider credentials, tool executio
 | `update_flight_status` | Write | Update a validated flight status | `flight_id`, `status` |
 | `assign_flight_to_gate` | Write | Transactionally assign a gate | flight and gate identifiers |
 | `get_available_gates` | Read | List available gates | None |
+| `get_all_gates` | Read | List every gate | None |
+| `get_gate_by_id` | Read | Look up a gate by internal ID | `gate_id` |
+| `get_gate_by_number` | Read | Look up a public gate number | `gate_number` |
+| `get_terminal_status` | Read | Summarize terminal gate and flight status | `terminal_id` |
+| `get_flights_by_terminal` | Read | List flights assigned to terminal gates | `terminal_id` |
 | `get_runway_status` | Read | List runways and statuses | None |
 | `get_latest_weather` | Read | Get the newest weather report | None |
 | `resolve_incident` | Write | Resolve an incident | `id` |

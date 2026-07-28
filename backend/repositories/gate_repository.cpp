@@ -59,3 +59,16 @@ Json::Value GateRepository::getAvailableGates()
 {
     return queryGates("WHERE g.status = 'AVAILABLE' ");
 }
+
+Json::Value GateRepository::getGateByNumber(const std::string &gateNumber)
+{
+    auto conn = DatabaseManager::getInstance().getConnection();
+    pqxx::work txn(*conn);
+    auto rows = txn.exec_params(std::string(kGateColumns) +
+        "WHERE REGEXP_REPLACE(LOWER(g.gate_number), '^([a-z]+)0+', '\\1') = "
+        "REGEXP_REPLACE(LOWER($1), '^([a-z]+)0+', '\\1') ORDER BY g.id LIMIT 1", gateNumber);
+    txn.commit();
+    Json::Value result; result["found"] = !rows.empty();
+    if (!rows.empty()) result["gate"] = gateRowToJson(rows[0]);
+    return result;
+}

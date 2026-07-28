@@ -16,6 +16,9 @@ public:
     static Json::Value get_flight_by_id(const std::string &id);
     static Json::Value get_flight_by_number(const std::string &flightNumber);
     static Json::Value search_flights(const Json::Value &arguments);
+    static Json::Value get_all_gates();
+    static Json::Value get_gate_by_id(const Json::Value &arguments);
+    static Json::Value get_gate_by_number(const Json::Value &arguments);
     static Json::Value get_available_gates();
     static Json::Value get_runway_status();
     static Json::Value get_latest_weather();

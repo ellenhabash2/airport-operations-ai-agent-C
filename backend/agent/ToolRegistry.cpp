@@ -76,6 +76,17 @@ Json::Value ToolRegistry::getToolDefinitions()
         props["airline"] = property("string", "Partial airline name");
         props["terminal_id"] = property("integer", "Numeric terminal identifier"); tools.append(tool);
     }
+    tools.append(makeTool("get_all_gates", "Returns every gate with terminal and operational status."));
+    {
+        auto tool = makeTool("get_gate_by_id", "Returns a gate by its internal numeric identifier.");
+        tool["function"]["parameters"]["properties"]["gate_id"] = property("integer", "Internal numeric gate identifier");
+        tool["function"]["parameters"]["required"].append("gate_id"); tools.append(tool);
+    }
+    {
+        auto tool = makeTool("get_gate_by_number", "Returns a gate by its public gate number.");
+        tool["function"]["parameters"]["properties"]["gate_number"] = property("string", "Public gate number, for example A03");
+        tool["function"]["parameters"]["required"].append("gate_number"); tools.append(tool);
+    }
     tools.append(makeTool("get_available_gates", "Returns gates that are currently available (status AVAILABLE)."));
     tools.append(makeTool("get_runway_status", "Returns all runways and their status."));
     tools.append(makeTool("get_latest_weather", "Returns the latest weather report for the airport."));
@@ -135,6 +146,9 @@ Json::Value ToolRegistry::executeTool(const std::string &name, const Json::Value
     if (name == "get_flight_by_id")       return Tools::get_flight_by_id(args["flight_id"].isInt() ? std::to_string(args["flight_id"].asInt()) : "");
     if (name == "get_flight_by_number")   return Tools::get_flight_by_number(args["flight_number"].isString() ? args["flight_number"].asString() : "");
     if (name == "search_flights")         return Tools::search_flights(args);
+    if (name == "get_all_gates")          return Tools::get_all_gates();
+    if (name == "get_gate_by_id")         return Tools::get_gate_by_id(args);
+    if (name == "get_gate_by_number")     return Tools::get_gate_by_number(args);
     if (name == "get_available_gates")    return Tools::get_available_gates();
     if (name == "get_runway_status")      return Tools::get_runway_status();
     if (name == "get_latest_weather")     return Tools::get_latest_weather();

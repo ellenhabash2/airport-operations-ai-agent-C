@@ -15,6 +15,9 @@ Json::Value Tools::get_flight_details(const std::string &) { return fakeResult("
 Json::Value Tools::get_flight_by_id(const std::string &) { return fakeResult("get_flight_by_id"); }
 Json::Value Tools::get_flight_by_number(const std::string &) { return fakeResult("get_flight_by_number"); }
 Json::Value Tools::search_flights(const Json::Value &) { return fakeResult("search_flights"); }
+Json::Value Tools::get_all_gates() { return fakeResult("get_all_gates"); }
+Json::Value Tools::get_gate_by_id(const Json::Value &) { return fakeResult("get_gate_by_id"); }
+Json::Value Tools::get_gate_by_number(const Json::Value &) { return fakeResult("get_gate_by_number"); }
 Json::Value Tools::get_available_gates() { return fakeResult("get_available_gates"); }
 Json::Value Tools::get_runway_status() { return fakeResult("get_runway_status"); }
 Json::Value Tools::get_latest_weather() { return fakeResult("get_latest_weather"); }

@@ -1,5 +1,13 @@
 # AeroMind database
 
+## Transactional gate assignment
+
+Flights reach terminals through `flights.gate_id -> gates.terminal_id`. Gate
+state is `AVAILABLE`, `OCCUPIED`, `MAINTENANCE`, or `CLOSED`. Assignment uses
+`SELECT ... FOR UPDATE` in one transaction so two requests cannot claim the
+same available gate; the previous gate release, target occupation, and flight
+foreign-key change commit atomically.
+
 ## Purpose and initialization
 
 PostgreSQL stores simulated airport operations, users, and persistent agent conversations. On the first creation of the Compose volume, PostgreSQL runs `sql/init.sql` and then `sql/seed.sql`. These scripts use `CREATE TABLE IF NOT EXISTS`, but seed inserts are intended for a new empty volume rather than repeated manual execution. Existing volumes are not destroyed during normal startup.

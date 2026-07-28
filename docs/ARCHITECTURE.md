@@ -1,5 +1,14 @@
 # AeroMind architecture
 
+## Flight-operation consistency
+
+Flight REST handlers and Gemini tools both use `FlightService`; only
+`FlightRepository` contains flight SQL. Gate assignment locks the flight,
+target gate, and different previous gate in one PostgreSQL transaction,
+rechecks target availability under lock, and updates all three states before a
+single commit. Failure rolls back the whole operation; same-gate assignment is
+idempotent.
+
 ## Architectural goals
 
 AeroMind favors visible separation of responsibilities, small testable agent components, provider isolation, safe registered tools, persistent user-owned memory, and deterministic simulated data. It deliberately avoids a large framework or live airport dependency for an academic demonstration.

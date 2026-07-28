@@ -1,5 +1,10 @@
 # AeroMind testing
 
+Flight service tests use injected repository functions and tool-registry tests
+use fake tool handlers, so neither reaches Gemini or the development database.
+They cover lookup, status canonicalization, search handoff, update behavior,
+gate-conflict mapping, and registration of the complete flight tool set.
+
 ## Testing strategy
 
 The repository has deterministic backend unit tests, frontend component tests, Docker health verification, and an explicit live-provider smoke test. Normal tests never contact Gemini and do not require `GEMINI_API_KEY`.

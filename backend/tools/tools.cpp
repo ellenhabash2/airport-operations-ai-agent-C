@@ -51,6 +51,35 @@ Json::Value Tools::get_flight_details(const std::string &id)
     }
 }
 
+Json::Value Tools::get_flight_by_id(const std::string &id)
+{
+    return safely([&] { return FlightService{}.getById(id); });
+}
+
+Json::Value Tools::get_flight_by_number(const std::string &flightNumber)
+{
+    return safely([&] { return FlightService{}.getByNumber(flightNumber); });
+}
+
+Json::Value Tools::search_flights(const Json::Value &arguments)
+{
+    return safely([&] {
+        FlightSearchCriteria criteria;
+        auto text = [&](const char *name, std::optional<std::string> &field) {
+            if (arguments.isMember(name)) {
+                if (!arguments[name].isString()) throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", std::string(name) + " must be a string");
+                field = arguments[name].asString();
+            }
+        };
+        text("origin", criteria.origin); text("destination", criteria.destination); text("status", criteria.status); text("airline", criteria.airline);
+        if (arguments.isMember("terminal_id")) {
+            if (!arguments["terminal_id"].isInt()) throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "terminal_id must be an integer");
+            criteria.terminalId = arguments["terminal_id"].asInt();
+        }
+        return FlightService{}.searchFlights(criteria);
+    });
+}
+
 // Returns all gates and their status.
 Json::Value Tools::get_available_gates()
 {
@@ -90,4 +119,31 @@ Json::Value Tools::create_incident(const std::string &title, const std::string &
                                    const std::string &severity, const std::string &location)
 {
     return safely([&] { return IncidentService{}.create(title, description, severity, location); });
+}
+
+Json::Value Tools::update_flight_status(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments["flight_id"].isInt() || !arguments["status"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "flight_id and status are required");
+        return FlightService{}.updateFlightStatus(std::to_string(arguments["flight_id"].asInt()), arguments["status"].asString());
+    });
+}
+
+Json::Value Tools::assign_flight_to_gate(const Json::Value &arguments)
+{
+    return safely([&] {
+        std::string flightId;
+        if (arguments.isMember("flight_id") && arguments["flight_id"].isInt()) flightId = std::to_string(arguments["flight_id"].asInt());
+        else if (arguments.isMember("flight_number") && arguments["flight_number"].isString())
+            flightId = std::to_string(FlightService{}.getByNumber(arguments["flight_number"].asString())["id"].asInt());
+        else throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "flight_id or flight_number is required");
+
+        std::string gateId;
+        if (arguments.isMember("gate_id") && arguments["gate_id"].isInt()) gateId = std::to_string(arguments["gate_id"].asInt());
+        else if (arguments.isMember("gate_number") && arguments["gate_number"].isString())
+            gateId = std::to_string(GateService{}.getByNumber(arguments["gate_number"].asString())["id"].asInt());
+        else throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "gate_id or gate_number is required");
+        return FlightService{}.assignFlightToGate(flightId, gateId);
+    });
 }

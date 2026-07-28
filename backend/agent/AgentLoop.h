@@ -13,6 +13,7 @@ public:
         Json::Value toolsUsed{Json::arrayValue};
         bool providerFailed{false};
         bool maxIterationsReached{false};
+        Json::Value providerError;
     };
 
     static Result run(Json::Value messages, const Json::Value &tools,

@@ -68,8 +68,48 @@ TEST(AgentLoopTest, ReportsProviderFailure) {
     EXPECT_TRUE(result.providerFailed);
 }
 TEST(AgentLoopTest, StopsAtMaximumIterations) {
-    FakeLLMClient fake{{toolCall("known"), toolCall("known"), toolCall("known")}};
+    FakeLLMClient fake{{toolCall("known"), toolCall("known"), toolCall("known"), answer("Forced summary")}};
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor, 3);
     EXPECT_TRUE(result.maxIterationsReached); EXPECT_EQ(result.toolsUsed.size(), 3U);
+    EXPECT_EQ(result.answer, "Forced summary");
+}
+
+TEST(AgentLoopTest, PreservesAssistantCallAndMatchingToolResultId) {
+    Json::Value first = toolCall("known", Json::Value("{\"id\":\"42\"}"));
+    first["choices"][0]["message"]["tool_calls"][0]["id"] = "gemini-call-42";
+    Json::Value messagesSeenBySecondCall;
+    int callCount = 0;
+    auto provider = [&](const Json::Value &messages, const Json::Value &) {
+        if (++callCount == 1) return first;
+        messagesSeenBySecondCall = messages;
+        return answer("Done");
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+                                       provider, executor);
+    ASSERT_EQ(messagesSeenBySecondCall.size(), 2U);
+    EXPECT_EQ(messagesSeenBySecondCall[0]["tool_calls"][0]["id"].asString(), "gemini-call-42");
+    EXPECT_EQ(messagesSeenBySecondCall[0]["tool_calls"][0]["function"]["arguments"].asString(),
+              "{\"id\":\"42\"}");
+    EXPECT_EQ(messagesSeenBySecondCall[1]["role"].asString(), "tool");
+    EXPECT_EQ(messagesSeenBySecondCall[1]["tool_call_id"].asString(), "gemini-call-42");
+    EXPECT_EQ(result.answer, "Done");
+}
+
+TEST(AgentLoopTest, PreservesSeveralCallsFromOneAssistantMessage) {
+    Json::Value first = toolCall("known");
+    Json::Value secondCall = first["choices"][0]["message"]["tool_calls"][0];
+    secondCall["id"] = "call-2";
+    first["choices"][0]["message"]["tool_calls"].append(secondCall);
+    Json::Value nextMessages;
+    int callCount = 0;
+    auto provider = [&](const Json::Value &messages, const Json::Value &) {
+        if (++callCount == 1) return first;
+        nextMessages = messages;
+        return answer("Both complete");
+    };
+    AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue), provider, executor);
+    ASSERT_EQ(nextMessages.size(), 3U);
+    EXPECT_EQ(nextMessages[1]["tool_call_id"].asString(), "call-1");
+    EXPECT_EQ(nextMessages[2]["tool_call_id"].asString(), "call-2");
 }

@@ -10,4 +10,13 @@ export default defineConfig({
     css: true,
     clearMocks: true,
   },
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:8848",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+    },
+  },
 })

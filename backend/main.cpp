@@ -75,7 +75,7 @@ int main()
 
                 resp->addHeader("Access-Control-Allow-Origin", "http://localhost:5173");
                 resp->addHeader("Access-Control-Allow-Methods",
-                                "GET, POST, PUT, DELETE, OPTIONS");
+                                "GET, POST, PUT, PATCH, DELETE, OPTIONS");
                 resp->addHeader("Access-Control-Allow-Headers",
                                 "Content-Type, Authorization");
                 resp->addHeader("Access-Control-Max-Age", "86400");
@@ -89,7 +89,7 @@ int main()
                const drogon::HttpResponsePtr &resp)
             {
                 resp->addHeader("Access-Control-Allow-Origin", "http://localhost:5173");
-                resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
                 resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
             
             });

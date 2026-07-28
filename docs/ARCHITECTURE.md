@@ -12,24 +12,38 @@ AeroMind favors visible separation of responsibilities, small testable agent com
 
 ### Controllers
 
-`backend/controllers` declares all 17 routes. Controllers parse requests, enforce route-level validation and business status codes, call repositories or the agent layer, and serialize public JSON. `JwtAuthFilter` is attached declaratively to protected routes.
+`backend/controllers` declares all 17 routes. Controllers parse transport inputs, call domain services, map domain errors to HTTP status codes, and preserve public JSON contracts. `JwtAuthFilter` is attached declaratively to protected routes. Authentication is the sole current controller exception: it uses `UserRepository` directly because there is no corresponding AI tool or duplicated user-domain workflow in this phase.
+
+### Domain services
+
+`backend/services` owns current business policy and supplies the shared boundary used by REST controllers and AI tools:
+
+- `FlightService` owns flight identifier validation and not-found behavior.
+- `GateService` exposes the existing all/available gate queries.
+- `RunwayService` exposes current runway status.
+- `IncidentService` owns incident input validation and resolution outcomes, including the already-resolved conflict.
+- `WeatherService` owns current weather input validation and lookup/create operations.
+- `ConversationService` owns creation, ownership checks, ordered history access, and visible-message persistence.
+- `AgentService` coordinates conversation context, `AgentLoop`, and visible turn persistence.
+
+Dependencies are explicit function objects, allowing service tests to use deterministic fakes without PostgreSQL. `TerminalService` is intentionally deferred because the repository currently has no terminal controller, tool, repository, or workflow.
 
 ### Agent layer
 
 - `LLMConfig` reads provider-neutral runtime configuration for the active Gemini provider.
 - `LLMClient` serializes OpenAI-compatible requests and handles TLS HTTP, bounded responses, retries, and sanitized errors.
-- `AgentLoop` coordinates assistant tool calls, matching tool result IDs, multiple calls, and bounded iterations.
+- `AgentLoop` coordinates provider iterations, assistant tool calls, matching tool result IDs, multiple calls, and bounded iterations.
 - `ToolRegistry` is the only name-to-function dispatch boundary and publishes the nine JSON schemas.
 
-There is no separate `AgentService` class in this repository; `AgentController` composes these focused components.
+`AgentService` coordinates conversation context and persistence around `AgentLoop`; it does not absorb provider/tool iteration behavior.
 
 ### Tool implementations
 
-`backend/tools` validates agent-facing action arguments and delegates to repositories. Read tools expose operational queries. Write tools can create or resolve incidents; there is no shell or arbitrary SQL tool.
+`backend/tools` parses agent-facing arguments, delegates to the same domain services as REST, and converts domain errors to safe tool JSON. Tool names and schemas remain owned by `ToolRegistry`.
 
 ### Repositories
 
-`backend/repositories` owns parameterized SQL and converts libpqxx rows into JSON structures used by controllers and tools. Conversation message reads join through `conversations.user_id`, providing defense-in-depth ownership enforcement.
+`backend/repositories` owns parameterized SQL, atomic database primitives, and libpqxx row-to-JSON mapping. The incident repository atomically reads and updates resolution state; `IncidentService` decides that an already-resolved result is a conflict. Conversation message reads join through `conversations.user_id`, providing defense-in-depth ownership enforcement.
 
 ### Database manager
 
@@ -57,8 +71,9 @@ The React/JavaScript application uses React Router for public and protected page
 
 1. Drogon matches a controller route.
 2. The controller validates path/body data.
-3. A repository executes parameterized SQL through the pool.
-4. The controller returns compatible JSON and an appropriate HTTP status.
+3. A domain service applies current business policy.
+4. A repository executes parameterized SQL through the pool.
+5. The controller returns compatible JSON and an appropriate HTTP status.
 
 ### Authenticated request
 
@@ -77,12 +92,14 @@ sequenceDiagram
     participant AgentLoop
     participant Gemini
     participant ToolRegistry
+    participant Service
     participant Repository
     participant PostgreSQL
 
     User->>Frontend: Submit query
     Frontend->>AgentController: POST /agent/query + JWT
-    AgentController->>Repository: Verify/create conversation and load history
+    AgentController->>Service: Query through AgentService
+    Service->>Repository: Verify/create conversation and load history
     Repository->>PostgreSQL: Parameterized queries
     PostgreSQL-->>Repository: Owned conversation data
     AgentController->>AgentLoop: Messages and nine tool schemas
@@ -90,7 +107,8 @@ sequenceDiagram
     Gemini-->>AgentLoop: Assistant tool_calls
     loop Up to maximum iterations
         AgentLoop->>ToolRegistry: Execute registered name and arguments
-        ToolRegistry->>Repository: Operational query/action
+        ToolRegistry->>Service: Operational query/action
+        Service->>Repository: Repository request
         Repository->>PostgreSQL: Parameterized SQL
         PostgreSQL-->>Repository: Rows/result
         Repository-->>ToolRegistry: JSON result
@@ -99,18 +117,18 @@ sequenceDiagram
         Gemini-->>AgentLoop: More calls or final answer
     end
     AgentLoop-->>AgentController: Answer and tools used
-    AgentController->>Repository: Persist visible turns
+    Service->>Repository: Persist visible turns
     AgentController-->>Frontend: answer, conversation_id, tools_used
     Frontend-->>User: Render answer
 ```
 
 ### Conversation continuation
 
-The optional `conversation_id` can be numeric JSON or a decimal string. The controller rejects non-owned conversations before loading context. Only stored user and assistant messages are replayed; tool messages require matching assistant call objects from the same provider turn and therefore remain ephemeral.
+The optional `conversation_id` can be numeric JSON or a decimal string. `ConversationService` rejects non-owned conversations before loading context. Only stored user and assistant messages are replayed; tool messages require matching assistant call objects from the same provider turn and therefore remain ephemeral.
 
 ## Error propagation
 
-- Validation errors stop in controllers with `400`.
+- Transport validation errors stop in controllers with `400`; domain validation errors originate in services and are mapped to `400`.
 - Authentication and ownership failures return `401` and `403`.
 - Missing records return `404`; business conflicts return `409`.
 - Repository exceptions are logged server-side and become sanitized `500` responses.
@@ -121,7 +139,7 @@ Logs intentionally omit credentials, authorization headers, full prompt history,
 
 ## Dependency boundaries
 
-The frontend depends only on AeroMind HTTP contracts. Gemini is behind `LLMClient`; tools depend on repositories; repositories depend on PostgreSQL. Automated agent tests replace HTTP transport and tool execution with fakes, so they remain deterministic and offline.
+The frontend depends only on AeroMind HTTP contracts. Gemini is behind `LLMClient`; controllers and tools share services; services depend explicitly on repository operations; repositories depend on PostgreSQL. Automated service and agent tests replace repository operations, HTTP transport, and tool execution with fakes, so they remain deterministic and offline.
 
 ## Design decisions
 

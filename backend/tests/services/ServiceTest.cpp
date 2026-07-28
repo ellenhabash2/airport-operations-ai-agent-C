@@ -39,6 +39,26 @@ TEST(FlightServiceTest, PropagatesControlledRepositoryFailure) {
     FlightService service({[]() -> Json::Value { throw std::runtime_error("offline"); }, [] { return Json::Value(); }, [](const std::string &) { return Json::Value(); }});
     EXPECT_THROW(service.getAll(), std::runtime_error);
 }
+TEST(FlightServiceTest, LooksUpNumberAndValidatesSearchStatus) {
+    FlightService::Dependencies dependencies;
+    dependencies.byNumber = [](const std::string &number) { Json::Value result; result["found"] = number == "sb2101"; result["flight"]["flight_number"] = "SB2101"; return result; };
+    dependencies.search = [](const FlightSearchCriteria &criteria) { Json::Value result(Json::arrayValue), flight; flight["status"] = *criteria.status; result.append(flight); return result; };
+    FlightService service(dependencies);
+    EXPECT_EQ(service.getByNumber(" sb2101 ")["flight_number"], "SB2101");
+    FlightSearchCriteria criteria; criteria.status = "delayed";
+    EXPECT_EQ(service.searchFlights(criteria)[0]["status"], "DELAYED");
+    criteria.status = "unknown"; expectDomain(DomainErrorKind::Validation, [&] { service.searchFlights(criteria); });
+}
+TEST(FlightServiceTest, UpdatesStatusAndMapsGateAssignmentConflicts) {
+    FlightService::Dependencies dependencies;
+    dependencies.byId = [](const std::string &id) { Json::Value result; result["found"] = id == "1"; result["flight"]["id"] = 1; return result; };
+    dependencies.updateStatus = [](int id, const std::string &status) { return id == 1 && status == "DELAYED"; };
+    dependencies.assignGate = [](int, int gate) { Json::Value result; result["outcome"] = gate == 2 ? "success" : "gate_unavailable"; result["new_gate"]["id"] = gate; return result; };
+    FlightService service(dependencies);
+    EXPECT_EQ(service.updateFlightStatus("1", "delayed")["id"], 1);
+    EXPECT_EQ(service.assignFlightToGate("1", "2")["new_gate"]["id"], 2);
+    expectDomain(DomainErrorKind::Conflict, [&] { service.assignFlightToGate("1", "3"); });
+}
 TEST(GateServiceTest, SeparatesAllAndAvailableQueries) {
     GateService service({[] { return arrayWith("status", "OCCUPIED"); }, [] { return arrayWith("status", "AVAILABLE"); }});
     EXPECT_EQ(service.getAll()[0]["status"], "OCCUPIED"); EXPECT_EQ(service.getAvailable()[0]["status"], "AVAILABLE");

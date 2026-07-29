@@ -22,14 +22,32 @@ services:
       - aeromind_network
     restart: unless-stopped
 
+  migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-aeromind}
+      PGUSER: ${POSTGRES_USER:-aeromind_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-aeromind_password}
+    volumes:
+      - ./sql/upgrades/phase7_rich_conversation_memory.sql:/migrations/phase7_rich_conversation_memory.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/phase7_rich_conversation_memory.sql"]
+    networks:
+      - aeromind_network
+    restart: "no"
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: aeromind_backend
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DB_HOST: postgres
       DB_PORT: 5432

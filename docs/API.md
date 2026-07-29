@@ -156,6 +156,12 @@ All terminal routes are unauthenticated, matching the operational read policy. S
 - **Success:** `200` with `status` and `data` array.
 - **Failure:** `500` unexpected database failure.
 
+### Get and update a runway
+
+- **Routes:** `GET /runways/{id}`, `GET /runways/code/{code}`, and authenticated `PATCH /runways/{id}/status`.
+- **Slash-containing codes:** Use `GET /runways/code?value=08L%2F26R`. Encoded slashes are not preserved as one Drogon path parameter.
+- **Failures:** `400` invalid input or status; `404` missing runway; `401` unauthenticated update.
+
 ## Incidents
 
 ### List incidents

@@ -52,6 +52,13 @@ void RunwayController::getRunways(const HttpRequestPtr &, std::function<void(con
     }
 }
 
+void RunwayController::getRunwayByCodeQuery(const HttpRequestPtr &request, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    try { callback(success(RunwayService{}.getByCode(request->getParameter("value")))); }
+    catch (const DomainError &e) { domainFailure(e, callback); }
+    catch (const std::exception &e) { internalFailure(e, callback); }
+}
+
 void RunwayController::getRunwayById(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback, std::string id)
 {
     try { callback(success(RunwayService{}.getById(id))); }

@@ -122,6 +122,7 @@ set(AEROMIND_SOURCES
     agent/LLMClient.cpp
     agent/LLMConfig.cpp
     agent/AgentLoop.cpp
+    agent/PresentationService.cpp
     agent/ToolRegistry.cpp
     security/PasswordHasher.cpp
     security/JwtService.cpp

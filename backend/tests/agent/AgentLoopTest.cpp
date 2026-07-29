@@ -49,6 +49,25 @@ TEST(AgentLoopTest, ExecutesThreeToolChain) {
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
     EXPECT_EQ(result.answer, "Combined"); EXPECT_EQ(result.toolsUsed.size(), 3U);
 }
+TEST(AgentLoopTest, ExecutesIncidentManagementScenariosWithFakeProvider) {
+    Json::Value severity; severity["severity"] = "CRITICAL";
+    Json::Value search; search["query"] = "birds near the runway";
+    Json::Value resolve; resolve["id"] = "12";
+    const std::vector<std::pair<std::string, Json::Value>> scenarios{
+        {"get_all_incidents", Json::Value(Json::objectValue)},
+        {"get_incidents_by_severity", severity}, {"search_incidents", search}, {"resolve_incident", resolve}};
+    for (const auto &[expectedName, expectedArgs] : scenarios) {
+        FakeLLMClient fake{{toolCall(expectedName, expectedArgs), answer("Done")}};
+        std::string calledName; Json::Value calledArgs;
+        auto incidentExecutor = [&](const std::string &name, const Json::Value &args) {
+            calledName = name; calledArgs = args; Json::Value result; result["ok"] = true; return result;
+        };
+        const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+            [&](const auto &messages, const auto &tools) { return fake.chat(messages, tools); }, incidentExecutor);
+        ASSERT_EQ(result.toolsUsed.size(), 1U); EXPECT_EQ(result.toolsUsed[0], expectedName);
+        EXPECT_EQ(calledName, expectedName); EXPECT_EQ(calledArgs, expectedArgs);
+    }
+}
 TEST(AgentLoopTest, ResolvesFlightTerminalAndOtherFlightsWithThreeTools) {
     Json::Value flightArgs; flightArgs["flight_number"] = "SB2101";
     Json::Value terminalArgs; terminalArgs["terminal_id"] = 2;

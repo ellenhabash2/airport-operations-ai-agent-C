@@ -48,8 +48,11 @@ void AgentController::queryAgent(const HttpRequestPtr &req, std::function<void(c
             requested = id;
         }
         const auto result = AgentService{}.query(userId, query, requested);
-        Json::Value body; body["status"] = "success"; body["conversation_id"] = result.conversationId;
+        Json::Value body; body["status"] = "success";
+        body["conversation_id"] = static_cast<Json::Int64>(std::stoll(result.conversationId));
         body["query"] = query; body["answer"] = result.answer; body["tools_used"] = result.toolsUsed;
+        body["tool_executions"] = result.toolExecutions;
+        body["presentation"] = result.presentation;
         auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k200OK); callback(response);
     } catch (const DomainError &error) { callback(errorResponse(error.what(), statusFor(error))); }
       catch (const std::exception &error) { std::cerr << "Agent request error: " << error.what() << std::endl; callback(errorResponse("Internal server error", k500InternalServerError)); }

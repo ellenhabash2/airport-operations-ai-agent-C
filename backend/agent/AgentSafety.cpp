@@ -27,7 +27,8 @@ bool isSensitiveKey(const std::string &rawKey)
         "authorization", "token", "api_key", "apikey", "x-api-key", "password",
         "passwd", "secret", "jwt", "cookie", "cookies", "credentials", "credential",
         "headers", "bearer", "auth", "access_token", "refresh_token", "session",
-        "set-cookie", "private_key"};
+        "set-cookie", "private_key", "provider_headers", "database_url",
+        "connection_string"};
     if (std::find(exact.begin(), exact.end(), key) != exact.end()) return true;
     if (key.find("password") != std::string::npos) return true;
     return endsWith(key, "_token") || endsWith(key, "_secret") || endsWith(key, "_key") ||

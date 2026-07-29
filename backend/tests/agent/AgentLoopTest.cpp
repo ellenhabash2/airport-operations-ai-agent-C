@@ -42,12 +42,17 @@ TEST(AgentLoopTest, ExecutesOneTool) {
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
     EXPECT_EQ(result.answer, "Done"); ASSERT_EQ(result.toolsUsed.size(), 1U);
+    ASSERT_EQ(result.toolExecutions.size(), 1U);
+    EXPECT_EQ(result.toolExecutions[0].tool, "known");
+    EXPECT_TRUE(result.toolExecutions[0].success);
+    EXPECT_GE(result.toolExecutions[0].durationMs, 0);
 }
 TEST(AgentLoopTest, ExecutesThreeToolChain) {
     FakeLLMClient fake{{toolCall("known"), toolCall("known"), toolCall("known"), answer("Combined")}};
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
-    EXPECT_EQ(result.answer, "Combined"); EXPECT_EQ(result.toolsUsed.size(), 3U);
+    EXPECT_EQ(result.answer, "Combined"); EXPECT_EQ(result.toolsUsed.size(), 1U);
+    EXPECT_EQ(result.toolExecutions.size(), 3U);
 }
 TEST(AgentLoopTest, CombinesDelayedFlightsActiveIncidentsAndWeather) {
     FakeLLMClient fake{{toolCall("find_delayed_flights"), toolCall("get_active_incidents"),
@@ -174,6 +179,9 @@ TEST(AgentLoopTest, SendsMalformedArgumentsBackAsToolError) {
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
     EXPECT_EQ(result.answer, "Recovered");
+    ASSERT_EQ(result.toolExecutions.size(), 1U);
+    EXPECT_FALSE(result.toolExecutions[0].success);
+    EXPECT_EQ(result.toolExecutions[0].result["code"], "invalid_arguments");
 }
 TEST(AgentLoopTest, AllowsModelToRecoverFromUnknownTool) {
     FakeLLMClient fake{{toolCall("unknown"), answer("Unknown tool explained")}};
@@ -191,7 +199,8 @@ TEST(AgentLoopTest, StopsAtMaximumIterations) {
     FakeLLMClient fake{{toolCall("known"), toolCall("known"), toolCall("known"), answer("Forced summary")}};
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor, 3);
-    EXPECT_TRUE(result.maxIterationsReached); EXPECT_EQ(result.toolsUsed.size(), 3U);
+    EXPECT_TRUE(result.maxIterationsReached); EXPECT_EQ(result.toolsUsed.size(), 1U);
+    EXPECT_EQ(result.toolExecutions.size(), 3U);
     EXPECT_EQ(result.answer, "Forced summary");
 }
 

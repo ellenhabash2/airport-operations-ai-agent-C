@@ -1,5 +1,7 @@
 #include "agent_service.h"
 #include "agent/LLMClient.h"
+#include "agent/AgentSafety.h"
+#include "agent/PresentationService.h"
 #include "agent/ToolRegistry.h"
 #include "domain_error.h"
 #include <memory>
@@ -53,6 +55,10 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
     context.userId = userId;
     context.conversationId = id;
     auto loop = runner_(messages, context);
+    const Json::Value publicExecutions = AgentSafety::toolExecutionsJson(loop.toolExecutions);
+    Json::Value presentation;
+    if (const auto generated = PresentationService::generate(loop.toolExecutions))
+        presentation = *generated;
     std::map<std::string, std::string> toolNames;
     for (Json::ArrayIndex index = 0; index < loop.generatedMessages.size(); ++index) {
         const auto &generated = loop.generatedMessages[index];
@@ -72,10 +78,13 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
             metadata["tool_call_id"] = generated.get("tool_call_id", "");
             metadata["tool_name"] = toolNames[metadata["tool_call_id"].asString()];
         }
-        if (finalMessage) metadata["tools_used"] = loop.toolsUsed;
+        if (finalMessage) {
+            metadata["tools_used"] = loop.toolsUsed;
+            metadata["tool_executions"] = publicExecutions;
+        }
         conversations_.saveReplayMessage(id, role, content, turnId,
             finalMessage ? "completed" : (loop.providerFailed ? "failed" : "in_progress"),
-            generated, calls, results, Json::Value(), metadata);
+            generated, calls, results, finalMessage ? presentation : Json::Value(), metadata);
     }
     if (loop.providerFailed)
         throw DomainError(DomainErrorKind::ProviderUnavailable, "provider_unavailable", "AI provider is currently unavailable");
@@ -83,8 +92,9 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
     if (loop.generatedMessages.empty()) {
         Json::Value final; final["role"] = "assistant"; final["content"] = answer;
         Json::Value metadata; metadata["schema_version"] = 1; metadata["tools_used"] = loop.toolsUsed;
+        metadata["tool_executions"] = publicExecutions;
         conversations_.saveReplayMessage(id, "assistant", answer, turnId, "completed", final,
-                                         Json::Value(), Json::Value(), Json::Value(), metadata);
+                                         Json::Value(), Json::Value(), presentation, metadata);
     }
-    return {answer, id, loop.toolsUsed};
+    return {answer, id, loop.toolsUsed, publicExecutions, presentation};
 }

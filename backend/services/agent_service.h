@@ -7,7 +7,13 @@
 #include <optional>
 #include <string>
 
-struct AgentResult { std::string answer; std::string conversationId; Json::Value toolsUsed{Json::arrayValue}; };
+struct AgentResult {
+    std::string answer;
+    std::string conversationId;
+    Json::Value toolsUsed{Json::arrayValue};
+    Json::Value toolExecutions{Json::arrayValue};
+    Json::Value presentation;
+};
 
 class AgentService {
 public:

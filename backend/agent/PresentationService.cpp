@@ -79,14 +79,9 @@ Json::Value PresentationService::buildFlightList(const std::vector<ToolExecution
 {
     Json::Value flights(Json::arrayValue);
     std::set<int> seen;
-    bool matched = false;
-    for (const auto &record : executions) {
-        if (!record.success || kFlightListTools.count(record.tool) == 0) continue;
-        if (!record.result.isArray()) continue;  // fail safe on malformed shape
-        matched = true;
-        mergeEntities(record.result, flights, seen);
-    }
-    if (!matched) return Json::nullValue;
+    const auto latest = latestSuccessAmong(executions, kFlightListTools);
+    if (!latest || !latest->isArray()) return Json::nullValue;
+    mergeEntities(*latest, flights, seen);
     Json::Value data;
     data["flights"] = flights;  // may legitimately be an empty array
     return wrap(PresentationType::FlightList, data);
@@ -96,8 +91,14 @@ Json::Value PresentationService::buildFlightStatus(const std::vector<ToolExecuti
 {
     const auto flight = latestSuccessAmong(executions, kFlightStatusTools);
     if (!flight || !isValidObject(*flight)) return Json::nullValue;
+    Json::Value entity = *flight;
+    if (flight->isMember("found")) {
+        if (!flight->get("found", false).asBool() || !(*flight)["flight"].isObject())
+            return Json::nullValue;
+        entity = (*flight)["flight"];
+    }
     Json::Value data;
-    data["flight"] = *flight;
+    data["flight"] = entity;
     return wrap(PresentationType::FlightStatus, data);
 }
 
@@ -148,20 +149,23 @@ Json::Value PresentationService::buildIncidentList(const std::vector<ToolExecuti
 {
     Json::Value incidents(Json::arrayValue);
     std::set<int> seen;
-    bool matched = false;
-    for (const auto &record : executions) {
-        if (!record.success) continue;
-        const bool isList = kIncidentListTools.count(record.tool) > 0;
-        const bool isMutation = record.tool == "create_incident" || record.tool == "resolve_incident";
-        if (!isList && !isMutation) continue;
-        if (isList && record.result.isArray()) { matched = true; mergeEntities(record.result, incidents, seen); }
-        else if (isMutation && isValidObject(record.result)) {
-            matched = true;
-            Json::Value single(Json::arrayValue); single.append(record.result);
-            mergeEntities(single, incidents, seen);
-        }
+    const std::set<std::string> allIncidentTools{
+        "get_all_incidents", "get_active_incidents", "get_incidents_by_severity",
+        "search_incidents", "create_incident", "resolve_incident"};
+    std::optional<ToolExecutionRecord> latest;
+    for (const auto &record : executions)
+        if (record.success && allIncidentTools.count(record.tool) > 0) latest = record;
+    if (!latest) return Json::nullValue;
+    if (kIncidentListTools.count(latest->tool) > 0) {
+        if (!latest->result.isArray()) return Json::nullValue;
+        mergeEntities(latest->result, incidents, seen);
+    } else {
+        Json::Value entity = latest->result;
+        if (latest->tool == "resolve_incident" && entity["incident"].isObject()) entity = entity["incident"];
+        if (!isValidObject(entity)) return Json::nullValue;
+        Json::Value single(Json::arrayValue); single.append(entity);
+        mergeEntities(single, incidents, seen);
     }
-    if (!matched) return Json::nullValue;
     Json::Value data;
     data["incidents"] = incidents;
     return wrap(PresentationType::IncidentList, data);

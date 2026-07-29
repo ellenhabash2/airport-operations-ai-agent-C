@@ -5,6 +5,21 @@
 #include "services/domain_error.h"
 #include "services/incident_service.h"
 
+namespace {
+HttpResponsePtr incidentListResponse(const Json::Value &incidents) {
+    Json::Value body; body["status"] = "success"; body["data"] = incidents;
+    auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k200OK); return response;
+}
+HttpResponsePtr incidentError(const DomainError &error) {
+    Json::Value body; body["error"] = error.what();
+    auto response = HttpResponse::newHttpJsonResponse(body);
+    auto status = k400BadRequest;
+    if (error.kind() == DomainErrorKind::NotFound) status = k404NotFound;
+    else if (error.kind() == DomainErrorKind::Conflict) status = k409Conflict;
+    response->setStatusCode(status); return response;
+}
+}
+
 void IncidentController::getIncidents(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
@@ -29,6 +44,26 @@ void IncidentController::getIncidents(const HttpRequestPtr &req, std::function<v
         http_response->setStatusCode(k500InternalServerError);
         callback(http_response);
     }
+}
+
+void IncidentController::getActiveIncidents(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    try { callback(incidentListResponse(IncidentService{}.getActive())); }
+    catch (const std::exception &e) { std::cerr << "Request error: " << e.what() << std::endl; Json::Value body; body["error"] = "Internal server error"; auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k500InternalServerError); callback(response); }
+}
+
+void IncidentController::searchIncidents(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    try { callback(incidentListResponse(IncidentService{}.search(req->getParameter("q")))); }
+    catch (const DomainError &e) { callback(incidentError(e)); }
+    catch (const std::exception &e) { std::cerr << "Request error: " << e.what() << std::endl; Json::Value body; body["error"] = "Internal server error"; auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k500InternalServerError); callback(response); }
+}
+
+void IncidentController::getIncidentsBySeverity(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback, std::string severity)
+{
+    try { callback(incidentListResponse(IncidentService{}.getBySeverity(severity))); }
+    catch (const DomainError &e) { callback(incidentError(e)); }
+    catch (const std::exception &e) { std::cerr << "Request error: " << e.what() << std::endl; Json::Value body; body["error"] = "Internal server error"; auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k500InternalServerError); callback(response); }
 }
 
 void IncidentController::createIncident(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)

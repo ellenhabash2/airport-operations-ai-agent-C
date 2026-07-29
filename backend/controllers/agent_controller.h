@@ -15,10 +15,13 @@ public:
     "/agent/conversations/{1}/messages",
     Get,
     "JwtAuthFilter");
+    ADD_METHOD_TO(AgentController::deleteConversation, "/agent/conversations/{1}", Delete, "JwtAuthFilter");
     METHOD_LIST_END
 
     void queryAgent(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void getHistory(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void getConversationMessages(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
     const std::string &conversationId);
+    void deleteConversation(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+                            const std::string &conversationId);
 };

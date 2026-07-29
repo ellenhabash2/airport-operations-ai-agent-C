@@ -75,3 +75,15 @@ void AgentController::getConversationMessages(const HttpRequestPtr &req,
     } catch (const DomainError &error) { callback(errorResponse(error.what(), statusFor(error))); }
       catch (const std::exception &error) { std::cerr << "Conversation messages request error: " << error.what() << std::endl; callback(errorResponse("Internal server error", k500InternalServerError)); }
 }
+
+void AgentController::deleteConversation(const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback, const std::string &id) {
+    try {
+        const auto userId = JwtService::getUserId(bearer(req));
+        if (userId.empty()) { callback(errorResponse("Invalid or expired token", k401Unauthorized)); return; }
+        ConversationService{}.deleteConversation(id, userId);
+        Json::Value body; body["status"] = "success"; body["deleted"] = true; body["conversation_id"] = id;
+        auto response = HttpResponse::newHttpJsonResponse(body); response->setStatusCode(k200OK); callback(response);
+    } catch (const DomainError &error) { callback(errorResponse(error.what(), statusFor(error))); }
+      catch (const std::exception &error) { std::cerr << "Conversation delete error: " << error.what() << std::endl; callback(errorResponse("Internal server error", k500InternalServerError)); }
+}

@@ -216,9 +216,16 @@ The composite primary key is (`flight_id`, `crew_id`).
 | `conversation_id` | INTEGER | No | FK to conversation, delete cascade |
 | `role` | VARCHAR(40) | No | `user`, `assistant`, `system`, or `tool` |
 | `content` | TEXT | No | Serialized visible message content |
+| `provider_payload` | JSONB | Yes | Validated replay-compatible provider message |
+| `tool_calls` | JSONB | Yes | Normalized assistant tool calls |
+| `tool_results` | JSONB | Yes | Normalized tool result |
+| `presentation` | JSONB | Yes | Reserved Phase 8-compatible storage; not generated in Phase 7 |
+| `metadata` | JSONB | Yes | Safe schema, tool, ordering, and status metadata |
+| `turn_id` | VARCHAR(64) | Yes | Server-generated logical turn group |
+| `turn_status` | VARCHAR(20) | Yes | `in_progress`, `completed`, or `failed` |
 | `created_at` | TIMESTAMP | No, current time | Message timestamp |
 
-Current agent persistence writes visible user and assistant turns. Message retrieval joins through the owning conversation and returns chronological order.
+Fresh databases receive these fields from `init.sql`. Existing databases use `sql/upgrades/phase7_rich_conversation_memory.sql`; it is idempotent, does not drop data, and may be applied twice safely. Legacy null structured fields remain readable.
 
 ## Indexes
 
@@ -231,8 +238,9 @@ Current agent persistence writes visible user and assistant turns. Message retri
 - `idx_weather_created` descending on weather timestamps
 - `idx_incidents_status_created` on status and descending creation time
 - `idx_messages_conversation_created` for chronological history reads
+- `idx_messages_conversation_turn` for complete-turn grouping
 
-PostgreSQL automatically supplies indexes for primary and unique constraints. The schema has no migration framework; changes are maintained in `init.sql` for fresh academic/demo environments.
+PostgreSQL automatically supplies indexes for primary and unique constraints. Phase 7 includes a targeted manual upgrade script, not a general migration framework.
 
 The existing `(terminal_id, status)` gate index and `flights(gate_id)` index cover terminal aggregates and flight joins. Terminal name/code unique constraints already provide indexes, so Phase 3 adds no duplicates.
 

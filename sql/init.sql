@@ -129,6 +129,13 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     role VARCHAR(40) NOT NULL,
     content TEXT NOT NULL,
+    provider_payload JSONB,
+    tool_calls JSONB,
+    tool_results JSONB,
+    presentation JSONB,
+    metadata JSONB,
+    turn_id VARCHAR(64),
+    turn_status VARCHAR(20),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool'))
 );
@@ -143,4 +150,5 @@ CREATE INDEX IF NOT EXISTS idx_flights_status_departure ON flights(status, depar
 CREATE INDEX IF NOT EXISTS idx_flight_crew_crew ON flight_crew(crew_id);
 CREATE INDEX IF NOT EXISTS idx_weather_created ON weather_reports(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incidents_status_created ON incidents(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_turn ON messages(conversation_id, turn_id, id);

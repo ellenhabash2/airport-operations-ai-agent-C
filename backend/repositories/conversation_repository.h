@@ -33,6 +33,15 @@ public:
         const std::string &role,
         const std::string &content);
 
+    static Json::Value saveStructuredMessage(
+        const std::string &conversationId, const std::string &role,
+        const std::string &content, const std::string &turnId,
+        const std::string &turnStatus, const Json::Value &providerPayload,
+        const Json::Value &toolCalls = Json::Value(),
+        const Json::Value &toolResults = Json::Value(),
+        const Json::Value &presentation = Json::Value(),
+        const Json::Value &metadata = Json::Value());
+
     // Returns true only when the conversation belongs to the given user.
     static bool conversationBelongsToUser(
         const std::string &conversationId,
@@ -50,4 +59,7 @@ public:
     static Json::Value getConversationMessages(
         const std::string &conversationId,
         const std::string &userId);
+
+    static bool deleteConversationForUser(const std::string &conversationId,
+                                          const std::string &userId);
 };

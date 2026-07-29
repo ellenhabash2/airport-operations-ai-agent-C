@@ -251,6 +251,10 @@ curl -H 'Authorization: Bearer <token>' http://localhost:8848/agent/history
 
 ## Error handling
 
+Conversation memory preserves replayable tool calls and results. See
+[`docs/AGENT_MEMORY.md`](docs/AGENT_MEMORY.md). Set `AGENT_HISTORY_MAX_TURNS`
+to retain 1–100 complete turns (default 30).
+
 Malformed input returns `400`, invalid authentication `401`, ownership failures `403`, missing records `404`, conflicts such as resolving an already-resolved incident `409`, unexpected failures `500`, and Gemini dependency failures `502`. Provider payloads and secrets are not returned.
 
 ## Security

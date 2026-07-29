@@ -7,6 +7,7 @@
 #include <cctype>
 #include <iostream>
 #include <pqxx/pqxx>
+#include <memory>
 
 namespace
 {
@@ -64,6 +65,21 @@ Json::Value messageRowToJson(const pqxx::row &row)
     message["role"] = row["role"].c_str();
     message["content"] = row["content"].c_str();
     message["created_at"] = row["created_at"].c_str();
+
+    auto readJson = [&](const char *name) {
+        if (row[name].is_null()) return Json::Value();
+        Json::Value parsed; Json::CharReaderBuilder builder; std::string error;
+        auto reader = std::unique_ptr<Json::CharReader>(builder.newCharReader());
+        const std::string text = row[name].c_str();
+        if (!reader->parse(text.data(), text.data() + text.size(), &parsed, &error)) {
+            Json::Value invalid; invalid["invalid"] = true; return invalid;
+        }
+        return parsed;
+    };
+    for (const char *name : {"provider_payload", "tool_calls", "tool_results", "presentation", "metadata"})
+        if (const auto value = readJson(name); !value.isNull()) message[name] = value;
+    if (!row["turn_id"].is_null()) message["turn_id"] = row["turn_id"].c_str();
+    if (!row["turn_status"].is_null()) message["turn_status"] = row["turn_status"].c_str();
 
     return message;
 }
@@ -155,7 +171,7 @@ Json::Value ConversationRepository::saveMessage(
         pqxx::result rows = txn.exec_params(
             "INSERT INTO messages (conversation_id, role, content) "
             "VALUES ($1, $2, $3) "
-            "RETURNING id, conversation_id, role, content, created_at",
+            "RETURNING id, conversation_id, role, content, provider_payload, tool_calls, tool_results, presentation, metadata, turn_id, turn_status, created_at",
             conversationId,
             role,
             content);
@@ -178,6 +194,38 @@ Json::Value ConversationRepository::saveMessage(
             << std::endl;
 
         throw;
+    }
+}
+
+Json::Value ConversationRepository::saveStructuredMessage(
+    const std::string &conversationId, const std::string &role,
+    const std::string &content, const std::string &turnId,
+    const std::string &turnStatus, const Json::Value &providerPayload,
+    const Json::Value &toolCalls, const Json::Value &toolResults,
+    const Json::Value &presentation, const Json::Value &metadata)
+{
+    Json::Value result;
+    if (!isPositiveInteger(conversationId) || !isValidRole(role) || turnId.empty()) {
+        result["error"] = "Invalid structured message"; return result;
+    }
+    auto encode = [](const Json::Value &value) {
+        if (value.isNull()) return std::string();
+        Json::StreamWriterBuilder writer; writer["indentation"] = "";
+        return Json::writeString(writer, value);
+    };
+    try {
+        auto conn = DatabaseManager::getInstance().getConnection(); pqxx::work txn(*conn);
+        const auto rows = txn.exec_params(
+            "INSERT INTO messages (conversation_id, role, content, provider_payload, tool_calls, tool_results, presentation, metadata, turn_id, turn_status) "
+            "VALUES ($1,$2,$3,NULLIF($4,'')::jsonb,NULLIF($5,'')::jsonb,NULLIF($6,'')::jsonb,NULLIF($7,'')::jsonb,NULLIF($8,'')::jsonb,$9,$10) "
+            "RETURNING id, conversation_id, role, content, provider_payload, tool_calls, tool_results, presentation, metadata, turn_id, turn_status, created_at",
+            conversationId, role, content, encode(providerPayload), encode(toolCalls),
+            encode(toolResults), encode(presentation), encode(metadata), turnId, turnStatus);
+        txn.commit();
+        if (rows.empty()) { result["error"] = "Message could not be saved."; return result; }
+        return messageRowToJson(rows[0]);
+    } catch (const std::exception &e) {
+        std::cerr << "Database error (saveStructuredMessage): " << e.what() << std::endl; throw;
     }
 }
 
@@ -310,6 +358,8 @@ Json::Value ConversationRepository::getConversationMessages(
             "    m.conversation_id, "
             "    m.role, "
             "    m.content, "
+            "    m.provider_payload, m.tool_calls, m.tool_results, m.presentation, m.metadata, "
+            "    m.turn_id, m.turn_status, "
             "    m.created_at "
             "FROM messages m "
             "JOIN conversations c "
@@ -338,4 +388,19 @@ Json::Value ConversationRepository::getConversationMessages(
     }
 
     return messages;
+}
+
+bool ConversationRepository::deleteConversationForUser(const std::string &conversationId,
+                                                        const std::string &userId)
+{
+    if (!isPositiveInteger(conversationId) || !isPositiveInteger(userId)) return false;
+    try {
+        auto conn = DatabaseManager::getInstance().getConnection(); pqxx::work txn(*conn);
+        const auto rows = txn.exec_params(
+            "DELETE FROM conversations WHERE id = $1 AND user_id = $2 RETURNING id",
+            conversationId, userId);
+        txn.commit(); return !rows.empty();
+    } catch (const std::exception &e) {
+        std::cerr << "Database error (deleteConversationForUser): " << e.what() << std::endl; throw;
+    }
 }

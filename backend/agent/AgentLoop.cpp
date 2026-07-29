@@ -20,10 +20,12 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
         if (!message.isMember("tool_calls") || message["tool_calls"].empty()) {
             if (message.isMember("content") && !message["content"].isNull())
                 result.answer = message["content"].asString();
+            result.generatedMessages.append(message);
             return result;
         }
 
         messages.append(message);
+        result.generatedMessages.append(message);
         for (const auto &call : message["tool_calls"]) {
             const std::string name = call["function"]["name"].asString();
             result.toolsUsed.append(name);
@@ -51,6 +53,7 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
             toolMessage["tool_call_id"] = call["id"];
             toolMessage["content"] = Json::writeString(writer, toolResult);
             messages.append(toolMessage);
+            result.generatedMessages.append(toolMessage);
         }
     }
     result.maxIterationsReached = true;
@@ -60,6 +63,9 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
         summary["choices"][0].isMember("message") &&
         summary["choices"][0]["message"].isMember("content") &&
         !summary["choices"][0]["message"]["content"].isNull())
+    {
         result.answer = summary["choices"][0]["message"]["content"].asString();
+        result.generatedMessages.append(summary["choices"][0]["message"]);
+    }
     return result;
 }

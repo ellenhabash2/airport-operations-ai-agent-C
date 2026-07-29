@@ -69,11 +69,20 @@ Json::Value ConversationService::loadReplayHistory(const std::string &id, const 
         }
         groups.back().append(row);
     }
+    std::vector<Json::Value> completeGroups;
+    for (const auto &group : groups) {
+        bool legacy = true, complete = false;
+        for (const auto &row : group) {
+            if (row.isMember("turn_id")) legacy = false;
+            if (row.get("turn_status", "").asString() == "completed") complete = true;
+        }
+        if (legacy || complete) completeGroups.push_back(group);
+    }
     if (maxTurns < 1) maxTurns = 1; if (maxTurns > 100) maxTurns = 100;
-    const auto first = groups.size() > maxTurns ? groups.size() - maxTurns : 0;
+    const auto first = completeGroups.size() > maxTurns ? completeGroups.size() - maxTurns : 0;
     Json::Value replay(Json::arrayValue);
-    for (std::size_t index = first; index < groups.size(); ++index) {
-        for (const auto &row : groups[index]) {
+    for (std::size_t index = first; index < completeGroups.size(); ++index) {
+        for (const auto &row : completeGroups[index]) {
             Json::Value message;
             const auto role = row.get("role", "").asString();
             if (role != "user" && role != "assistant" && role != "system" && role != "tool") continue;

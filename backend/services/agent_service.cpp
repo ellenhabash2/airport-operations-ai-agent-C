@@ -5,6 +5,7 @@
 #include <memory>
 #include <atomic>
 #include <chrono>
+#include <map>
 
 namespace {
 AgentService::Runner productionRunner() {
@@ -52,6 +53,7 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
     context.userId = userId;
     context.conversationId = id;
     auto loop = runner_(messages, context);
+    std::map<std::string, std::string> toolNames;
     for (Json::ArrayIndex index = 0; index < loop.generatedMessages.size(); ++index) {
         const auto &generated = loop.generatedMessages[index];
         const auto role = generated.get("role", "assistant").asString();
@@ -60,10 +62,15 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
                                   index + 1 == loop.generatedMessages.size() && !loop.providerFailed;
         Json::Value metadata; metadata["schema_version"] = 1; metadata["execution_order"] = index;
         Json::Value calls, results;
-        if (role == "assistant" && generated["tool_calls"].isArray()) calls = generated["tool_calls"];
+        if (role == "assistant" && generated["tool_calls"].isArray()) {
+            calls = generated["tool_calls"];
+            for (const auto &call : calls)
+                toolNames[call.get("id", "").asString()] = call["function"].get("name", "").asString();
+        }
         if (role == "tool") {
             results = parseJson(content);
             metadata["tool_call_id"] = generated.get("tool_call_id", "");
+            metadata["tool_name"] = toolNames[metadata["tool_call_id"].asString()];
         }
         if (finalMessage) metadata["tools_used"] = loop.toolsUsed;
         conversations_.saveReplayMessage(id, role, content, turnId,

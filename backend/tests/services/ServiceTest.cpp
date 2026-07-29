@@ -9,6 +9,7 @@
 #include "services/terminal_service.h"
 #include "services/weather_service.h"
 #include <stdexcept>
+#include <memory>
 
 namespace {
 Json::Value arrayWith(const char *key, const char *value) { Json::Value list(Json::arrayValue), item; item[key] = value; list.append(item); return list; }
@@ -250,6 +251,8 @@ TEST(ConversationServiceTest, ReplaysCompleteBoundedStructuredTurnsAndLegacyRows
     add("tool", tool["content"].asCString(), "turn-2", tool);
     Json::Value final; final["role"] = "assistant"; final["content"] = "One delayed flight";
     add("assistant", final["content"].asCString(), "turn-2", final);
+    rows[2]["turn_status"] = "in_progress"; rows[3]["turn_status"] = "in_progress";
+    rows[4]["turn_status"] = "in_progress"; rows[5]["turn_status"] = "completed";
     auto service = ConversationService({
         [](const std::string &) { return Json::Value(); }, {},
         [](const std::string &, const std::string &) { return true; }, {},
@@ -265,4 +268,59 @@ TEST(ConversationServiceTest, BoundsHistoryConfiguration) {
     setenv("AGENT_HISTORY_MAX_TURNS", "1000", 1); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 100U);
     setenv("AGENT_HISTORY_MAX_TURNS", "bad", 1); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 30U);
     unsetenv("AGENT_HISTORY_MAX_TURNS");
+}
+
+TEST(ConversationServiceTest, DeletesOnlyThroughOwnershipAwareRepositoryOperation) {
+    bool deleted = false;
+    ConversationService::Dependencies deps;
+    deps.remove = [&](const std::string &id, const std::string &user) { deleted = id == "4" && user == "7"; return deleted; };
+    ConversationService service(deps); service.deleteConversation("4", "7"); EXPECT_TRUE(deleted);
+    expectDomain(DomainErrorKind::Validation, [&] { service.deleteConversation("bad", "7"); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.deleteConversation("5", "7"); });
+}
+
+TEST(AgentServiceTest, ReplaysPriorStructuredToolResultForFollowUp) {
+    auto stored = std::make_shared<Json::Value>(Json::arrayValue);
+    ConversationService::Dependencies deps;
+    deps.create = [](const std::string &) { Json::Value v; v["id"] = "9"; return v; };
+    deps.createNamed = [](const std::string &, const std::string &title) { Json::Value v; v["id"] = "9"; v["title"] = title; return v; };
+    deps.owns = [](const std::string &, const std::string &user) { return user == "7"; };
+    deps.messages = [stored](const std::string &, const std::string &) { return *stored; };
+    deps.list = [](const std::string &) { return Json::Value(Json::arrayValue); };
+    deps.saveStructured = [stored](const std::string &, const std::string &role, const std::string &content,
+        const std::string &turn, const std::string &status, const Json::Value &payload,
+        const Json::Value &calls, const Json::Value &results, const Json::Value &, const Json::Value &metadata) {
+        Json::Value row; row["role"] = role; row["content"] = content; row["turn_id"] = turn;
+        row["turn_status"] = status; row["provider_payload"] = payload;
+        if (!calls.isNull()) row["tool_calls"] = calls; if (!results.isNull()) row["tool_results"] = results;
+        if (!metadata.isNull()) row["metadata"] = metadata; stored->append(row); Json::Value out; out["id"] = "1"; return out;
+    };
+    auto calls = std::make_shared<int>(0);
+    AgentService service(ConversationService(deps), [calls](Json::Value messages, const ToolExecutionContext &) {
+        AgentLoop::Result result;
+        if ((*calls)++ == 0) {
+            Json::Value assistant; assistant["role"] = "assistant"; assistant["content"] = Json::nullValue;
+            assistant["tool_calls"][0]["id"] = "call-delayed-1";
+            assistant["tool_calls"][0]["function"]["name"] = "find_delayed_flights";
+            assistant["tool_calls"][0]["function"]["arguments"] = Json::Value(Json::objectValue);
+            Json::Value tool; tool["role"] = "tool"; tool["tool_call_id"] = "call-delayed-1";
+            tool["content"] = "[{\"flight\":\"SB2101\",\"terminal\":\"A\"},{\"flight\":\"SB2200\",\"terminal\":\"B\"}]";
+            Json::Value final; final["role"] = "assistant"; final["content"] = "Two delayed flights";
+            result.generatedMessages.append(assistant); result.generatedMessages.append(tool); result.generatedMessages.append(final);
+            result.toolsUsed.append("find_delayed_flights"); result.answer = "Two delayed flights";
+        } else {
+            bool sawCall = false, sawResult = false;
+            for (const auto &message : messages) {
+                sawCall = sawCall || (message["tool_calls"].isArray() && message["tool_calls"][0]["id"] == "call-delayed-1");
+                sawResult = sawResult || message.get("tool_call_id", "").asString() == "call-delayed-1";
+            }
+            EXPECT_TRUE(sawCall); EXPECT_TRUE(sawResult);
+            result.answer = "SB2101 departs from Terminal A";
+            Json::Value final; final["role"] = "assistant"; final["content"] = result.answer; result.generatedMessages.append(final);
+        }
+        return result;
+    });
+    const auto first = service.query("7", "Which flights are delayed?", std::nullopt);
+    const auto second = service.query("7", "Which of those are departing from Terminal A?", first.conversationId);
+    EXPECT_EQ(first.conversationId, second.conversationId); EXPECT_NE(second.answer.find("SB2101"), std::string::npos);
 }

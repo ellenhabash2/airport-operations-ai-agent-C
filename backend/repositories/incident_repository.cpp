@@ -14,11 +14,12 @@ bool isPositiveInteger(const std::string &value)
 {
     return !value.empty() &&
            std::all_of(value.begin(), value.end(),
-                       [](unsigned char ch) { return std::isdigit(ch); });
+                       [](unsigned char ch) { return std::isdigit(ch); }) &&
+           std::any_of(value.begin(), value.end(), [](char ch) { return ch != '0'; });
 }
 
 constexpr const char *kIncidentColumns =
-    "SELECT id, title, description, severity, location, status, created_at FROM incidents ";
+    "SELECT id, title, description, severity, location, status, created_at, resolved_at FROM incidents ";
 
 Json::Value incidentRowToJson(const pqxx::row &row)
 {
@@ -30,6 +31,7 @@ Json::Value incidentRowToJson(const pqxx::row &row)
     incident["location"] = row["location"].is_null() ? "" : row["location"].c_str();
     incident["status"] = row["status"].c_str();
     incident["created_at"] = row["created_at"].c_str();
+    incident["resolved_at"] = row["resolved_at"].is_null() ? "" : row["resolved_at"].c_str();
     return incident;
 }
 
@@ -43,7 +45,7 @@ Json::Value queryIncidents(const std::string &whereClause)
         pqxx::work txn(*conn);
 
         pqxx::result res = txn.exec(std::string(kIncidentColumns) + whereClause +
-                                    "ORDER BY created_at DESC LIMIT 50");
+                                    "ORDER BY created_at DESC, id DESC");
 
         for (auto row : res)
         {
@@ -70,6 +72,51 @@ Json::Value IncidentRepository::getAllIncidents()
 Json::Value IncidentRepository::getActiveIncidents()
 {
     return queryIncidents("WHERE status <> 'RESOLVED' ");
+}
+
+Json::Value IncidentRepository::getIncidentsBySeverity(const std::string &severity)
+{
+    Json::Value incidents(Json::arrayValue);
+    auto conn = DatabaseManager::getInstance().getConnection();
+    pqxx::work txn(*conn);
+    auto rows = txn.exec_params(std::string(kIncidentColumns) +
+        "WHERE severity = $1 ORDER BY created_at DESC, id DESC", severity);
+    for (const auto &row : rows) incidents.append(incidentRowToJson(row));
+    txn.commit();
+    return incidents;
+}
+
+Json::Value IncidentRepository::searchIncidents(const std::string &query)
+{
+    std::string escaped;
+    escaped.reserve(query.size());
+    for (char ch : query)
+    {
+        if (ch == '%' || ch == '_' || ch == '\\') escaped.push_back('\\');
+        escaped.push_back(ch);
+    }
+    Json::Value incidents(Json::arrayValue);
+    auto conn = DatabaseManager::getInstance().getConnection();
+    pqxx::work txn(*conn);
+    auto rows = txn.exec_params(std::string(kIncidentColumns) +
+        "WHERE title ILIKE $1 ESCAPE '\\\\' OR description ILIKE $1 ESCAPE '\\\\' "
+        "OR COALESCE(location, '') ILIKE $1 ESCAPE '\\\\' "
+        "ORDER BY created_at DESC, id DESC", "%" + escaped + "%");
+    for (const auto &row : rows) incidents.append(incidentRowToJson(row));
+    txn.commit();
+    return incidents;
+}
+
+Json::Value IncidentRepository::getIncidentById(const std::string &id)
+{
+    if (!isPositiveInteger(id)) return Json::Value();
+    auto conn = DatabaseManager::getInstance().getConnection();
+    pqxx::work txn(*conn);
+    auto rows = txn.exec_params(std::string(kIncidentColumns) + "WHERE id = $1", id);
+    Json::Value incident;
+    if (!rows.empty()) incident = incidentRowToJson(rows[0]);
+    txn.commit();
+    return incident;
 }
 
 Json::Value IncidentRepository::createIncident(const std::string &title, const std::string &description,
@@ -126,33 +173,23 @@ Json::Value IncidentRepository::resolveIncident(const std::string &id)
         auto conn = DatabaseManager::getInstance().getConnection();
         pqxx::work txn(*conn);
 
-        // Step 1: check the incident exists and read its current status
-        pqxx::result existing = txn.exec_params(
-            "SELECT status FROM incidents WHERE id = $1", id);
-
-        if (existing.empty())
-        {
-            result["found"] = false;
-            return result;
-        }
-
-        std::string currentStatus = existing[0]["status"].c_str();
-
-        // Business rule: an already-resolved incident cannot be resolved again
-        if (currentStatus == "RESOLVED")
-        {
-            result["found"] = true;
-            result["already_resolved"] = true;
-            return result;
-        }
-
-        // Step 2: resolve it and record the resolution time
+        // A conditional update makes resolution race-safe: at most one caller
+        // can transition a non-resolved incident and receive a row.
         pqxx::result res = txn.exec_params(
             "UPDATE incidents SET status = 'RESOLVED', resolved_at = NOW() "
-            "WHERE id = $1 "
+            "WHERE id = $1 AND status <> 'RESOLVED' "
             "RETURNING id, title, description, severity, location, status, created_at, resolved_at",
             id
         );
+
+        if (res.empty())
+        {
+            auto existing = txn.exec_params("SELECT 1 FROM incidents WHERE id = $1", id);
+            result["found"] = !existing.empty();
+            result["already_resolved"] = !existing.empty();
+            txn.commit();
+            return result;
+        }
 
         txn.commit();
 

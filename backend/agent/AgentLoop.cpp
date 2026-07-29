@@ -1,4 +1,5 @@
 #include "AgentLoop.h"
+#include <chrono>
 #include <memory>
 
 AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
@@ -6,6 +7,7 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
                                 int maxIterations)
 {
     Result result;
+    std::size_t sequence = 0;
     for (int step = 0; step < maxIterations; ++step) {
         const Json::Value response = provider(messages, tools);
         if (response.isMember("error")) {
@@ -40,11 +42,27 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
                 const auto value = raw.asString();
                 valid = reader->parse(value.data(), value.data() + value.size(), &args, &error) && args.isObject();
             }
+
+            // Measure only the actual tool execution with a monotonic clock.
+            // Duration covers argument validation + registry execution (documented).
+            const auto started = std::chrono::steady_clock::now();
             if (!valid) toolResult["error"] = "Invalid tool arguments";
             else {
                 try { toolResult = execute(name, args); }
                 catch (const std::exception &) { toolResult["error"] = "Tool execution failed"; }
             }
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started).count();
+
+            ToolExecutionRecord record;
+            record.callId = call.get("id", "").asString();
+            record.tool = name;
+            record.arguments = args;
+            record.result = toolResult;
+            record.success = !(toolResult.isObject() && toolResult.isMember("error"));
+            record.durationMs = elapsed < 0 ? 0 : elapsed;
+            record.sequence = sequence++;
+            result.toolExecutions.push_back(std::move(record));
 
             Json::StreamWriterBuilder writer;
             writer["indentation"] = "";

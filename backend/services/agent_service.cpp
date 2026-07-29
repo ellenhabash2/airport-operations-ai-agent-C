@@ -7,10 +7,10 @@
 namespace {
 AgentService::Runner productionRunner() {
     auto client = std::make_shared<LLMClient>();
-    return [client](Json::Value messages) {
+    return [client](Json::Value messages, const ToolExecutionContext &context) {
         return AgentLoop::run(messages, ToolRegistry::getToolDefinitions(),
             [client](const Json::Value &current, const Json::Value &tools) { return client->chatWithTools(current, tools); },
-            [](const std::string &name, const Json::Value &args) { return ToolRegistry::executeTool(name, args); });
+            [&context](const std::string &name, const Json::Value &args) { return ToolRegistry::executeTool(name, args, context); });
     };
 }
 }
@@ -36,7 +36,11 @@ AgentResult AgentService::query(const std::string &userId, const std::string &qu
     }
     conversations_.saveUserMessage(id, query);
     Json::Value user; user["role"] = "user"; user["content"] = query; messages.append(user);
-    auto loop = runner_(messages);
+    ToolExecutionContext context;
+    context.authenticated = true;
+    context.userId = userId;
+    context.conversationId = id;
+    auto loop = runner_(messages, context);
     if (loop.providerFailed)
         throw DomainError(DomainErrorKind::ProviderUnavailable, "provider_unavailable", "AI provider is currently unavailable");
     auto answer = loop.answer.empty() ? "I couldn't reach a final answer within the allowed number of steps. Please try rephrasing your question." : loop.answer;

@@ -2,125 +2,122 @@
 #include <set>
 #include "agent/ToolRegistry.h"
 
-TEST(ToolRegistryTest, RegistersEverySupportedToolExactlyOnce)
+namespace
+{
+const std::set<std::string> canonicalTools{
+    "get_all_flights", "find_delayed_flights", "get_flight_by_id", "get_flight_by_number",
+    "search_flights", "update_flight_status", "assign_flight_to_gate", "get_all_gates",
+    "get_available_gates", "get_gate_by_id", "get_gate_by_number", "get_terminal_status",
+    "get_flights_by_terminal", "get_runway_status", "get_runway_by_id", "get_runway_by_code",
+    "update_runway_status", "get_latest_weather", "get_all_incidents", "get_active_incidents",
+    "get_incidents_by_severity", "search_incidents", "create_incident", "resolve_incident"};
+
+ToolExecutionContext authenticated()
+{
+    ToolExecutionContext context;
+    context.authenticated = true;
+    context.userId = "7";
+    context.conversationId = "12";
+    return context;
+}
+}
+
+TEST(ToolRegistryTest, RegistersExactCanonicalInventoryAndLegacyAliasOnce)
 {
     const auto definitions = ToolRegistry::getToolDefinitions();
     ASSERT_TRUE(definitions.isArray());
-    EXPECT_EQ(definitions.size(), 22U);
+    EXPECT_EQ(definitions.size(), canonicalTools.size() + 1);
     std::set<std::string> names;
-    for (const auto &definition : definitions)
-        names.insert(definition["function"]["name"].asString());
+    for (const auto &definition : definitions) names.insert(definition["function"]["name"].asString());
     EXPECT_EQ(names.size(), definitions.size());
-    EXPECT_TRUE(names.contains("find_delayed_flights"));
-    EXPECT_TRUE(names.contains("create_incident"));
-    EXPECT_TRUE(names.contains("resolve_incident"));
-    EXPECT_TRUE(names.contains("get_all_incidents"));
-    EXPECT_TRUE(names.contains("get_incidents_by_severity"));
-    EXPECT_TRUE(names.contains("search_incidents"));
+    for (const auto &name : canonicalTools) EXPECT_TRUE(names.contains(name)) << name;
+    EXPECT_TRUE(names.contains("get_flight_details"));
 }
 
-TEST(ToolRegistryTest, RegistersExpandedIncidentToolsWithValidatedSchemas)
+TEST(ToolRegistryTest, MetadataIsCompleteDeterministicAndProviderDerived)
 {
-    for (const auto &definition : ToolRegistry::getToolDefinitions()) {
-        const auto name = definition["function"]["name"].asString();
-        if (name == "get_incidents_by_severity") {
-            const auto &severity = definition["function"]["parameters"]["properties"]["severity"];
-            EXPECT_EQ(severity["enum"].size(), 4U); EXPECT_EQ(severity["enum"][3], "CRITICAL");
-        }
+    const auto listed = ToolRegistry::operational().listTools();
+    const auto schemas = ToolRegistry::operational().providerToolSchemas();
+    ASSERT_EQ(listed.size(), schemas.size());
+    std::string previous;
+    for (Json::ArrayIndex index = 0; index < schemas.size(); ++index) {
+        const auto &item = listed[index];
+        EXPECT_FALSE(item.name.empty()); EXPECT_FALSE(item.description.empty()); EXPECT_TRUE(item.handler);
+        EXPECT_EQ(item.parameters["type"], "object"); EXPECT_TRUE(item.parameters["properties"].isObject());
+        EXPECT_EQ(schemas[index]["function"]["name"], item.name);
+        EXPECT_GE(item.name, previous); previous = item.name;
     }
-    EXPECT_EQ(ToolRegistry::executeTool("get_all_incidents", Json::Value(Json::objectValue))["fake_tool"], "get_all_incidents");
-    Json::Value severity; severity["severity"] = "HIGH";
-    EXPECT_EQ(ToolRegistry::executeTool("get_incidents_by_severity", severity)["fake_tool"], "get_incidents_by_severity");
-    Json::Value query; query["query"] = "bird";
-    EXPECT_EQ(ToolRegistry::executeTool("search_incidents", query)["fake_tool"], "search_incidents");
+    EXPECT_EQ(ToolRegistry::operational().findTool("update_flight_status")->access, ToolAccess::Write);
+    EXPECT_EQ(ToolRegistry::operational().findTool("find_delayed_flights")->access, ToolAccess::ReadOnly);
+    EXPECT_TRUE(ToolRegistry::operational().findTool("get_flight_details")->deprecated);
 }
 
-
-TEST(ToolRegistryTest, RegistersGateAndTerminalOperationsTools)
+TEST(ToolRegistryTest, RejectsDuplicateRegistration)
 {
-    const auto definitions = ToolRegistry::getToolDefinitions();
-    const std::set<std::string> expected{
-        "get_all_gates", "get_gate_by_id", "get_gate_by_number", "get_available_gates",
-        "get_terminal_status", "get_flights_by_terminal"};
-    std::set<std::string> found;
-    for (const auto &definition : definitions) {
-        const auto name = definition["function"]["name"].asString();
-        if (expected.contains(name)) found.insert(name);
-        if (name == "get_gate_by_id") {
-            EXPECT_EQ(definition["function"]["parameters"]["properties"]["gate_id"]["type"], "integer");
-            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "gate_id");
-        }
-        if (name == "get_terminal_status" || name == "get_flights_by_terminal") {
-            EXPECT_EQ(definition["function"]["parameters"]["properties"]["terminal_id"]["type"], "integer");
-            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "terminal_id");
-        }
+    ToolRegistry registry;
+    auto schema = Json::Value(Json::objectValue); schema["type"] = "object";
+    schema["properties"] = Json::Value(Json::objectValue); schema["required"] = Json::Value(Json::arrayValue);
+    ToolDefinition tool{"same", "description", schema, ToolAccess::ReadOnly,
+                        [](const auto &, const auto &) { return Json::Value(); }};
+    registry.registerTool(tool);
+    EXPECT_THROW(registry.registerTool(tool), std::invalid_argument);
+}
+
+TEST(ToolRegistryTest, SchemasMatchRequiredArgumentsAndDomainEnums)
+{
+    const auto &registry = ToolRegistry::operational();
+    EXPECT_EQ(registry.findTool("get_flight_by_id")->parameters["required"][0], "flight_id");
+    EXPECT_EQ(registry.findTool("get_gate_by_number")->parameters["required"][0], "gate_number");
+    EXPECT_EQ(registry.findTool("get_terminal_status")->parameters["required"][0], "terminal_id");
+    EXPECT_EQ(registry.findTool("get_runway_by_code")->parameters["required"][0], "runway_code");
+    EXPECT_EQ(registry.findTool("resolve_incident")->parameters["properties"]["id"]["type"], "integer");
+    EXPECT_EQ(registry.findTool("get_incidents_by_severity")->parameters["properties"]["severity"]["enum"].size(), 4U);
+    EXPECT_EQ(registry.findTool("update_runway_status")->parameters["properties"]["status"]["enum"].size(), 3U);
+}
+
+TEST(ToolRegistryTest, RejectsUnknownAndInvalidArgumentsSafely)
+{
+    auto result = ToolRegistry::executeTool("not_a_real_tool", Json::Value(Json::objectValue));
+    EXPECT_EQ(result["error"]["code"], "unknown_tool");
+    result = ToolRegistry::executeTool("get_flight_by_id", Json::Value(Json::objectValue));
+    EXPECT_EQ(result["error"]["code"], "invalid_arguments");
+    Json::Value invalid; invalid["flight_id"] = -2;
+    result = ToolRegistry::executeTool("get_flight_by_id", invalid);
+    EXPECT_EQ(result["error"]["code"], "invalid_arguments");
+    Json::Value wrong; wrong["severity"] = "URGENT";
+    result = ToolRegistry::executeTool("get_incidents_by_severity", wrong);
+    EXPECT_EQ(result["error"]["code"], "invalid_arguments");
+}
+
+TEST(ToolRegistryTest, ExecutesReadToolsAndLegacyAliasThroughSameRegistry)
+{
+    EXPECT_EQ(ToolRegistry::executeTool("find_delayed_flights", Json::Value(Json::objectValue))["fake_tool"], "find_delayed_flights");
+    Json::Value canonical; canonical["flight_id"] = 5;
+    EXPECT_EQ(ToolRegistry::executeTool("get_flight_by_id", canonical)["fake_tool"], "get_flight_by_id");
+    Json::Value legacy; legacy["id"] = "5";
+    EXPECT_EQ(ToolRegistry::executeTool("get_flight_details", legacy)["fake_tool"], "get_flight_details");
+}
+
+TEST(ToolRegistryTest, EveryWriteToolRequiresAuthenticatedIdentity)
+{
+    const std::set<std::string> writes{"update_flight_status", "assign_flight_to_gate", "update_runway_status", "create_incident", "resolve_incident"};
+    for (const auto &name : writes) {
+        ASSERT_EQ(ToolRegistry::operational().findTool(name)->access, ToolAccess::Write);
+        const auto result = ToolRegistry::executeTool(name, Json::Value(Json::objectValue));
+        EXPECT_EQ(result["error"]["code"], "unauthenticated") << name;
     }
-    EXPECT_EQ(found, expected);
-
-    Json::Value gateArgs; gateArgs["gate_id"] = 1;
-    EXPECT_EQ(ToolRegistry::executeTool("get_gate_by_id", gateArgs)["fake_tool"], "get_gate_by_id");
-    Json::Value terminalArgs; terminalArgs["terminal_id"] = 1;
-    EXPECT_EQ(ToolRegistry::executeTool("get_terminal_status", terminalArgs)["fake_tool"], "get_terminal_status");
 }
 
-TEST(ToolRegistryTest, RegistersCompleteFlightOperationsTools)
+TEST(ToolRegistryTest, AuthenticatedContextPermitsValidWriteDispatch)
 {
-    const auto definitions = ToolRegistry::getToolDefinitions();
-    for (const std::string name : {"get_flight_by_id", "get_flight_by_number", "search_flights", "update_flight_status", "assign_flight_to_gate"}) {
-        bool found = false;
-        for (const auto &definition : definitions) if (definition["function"]["name"].asString() == name) found = true;
-        EXPECT_TRUE(found) << name;
-    }
-    Json::Value args; args["flight_id"] = 1;
-    EXPECT_EQ(ToolRegistry::executeTool("get_flight_by_id", args)["fake_tool"], "get_flight_by_id");
-}
-
-TEST(ToolRegistryTest, ExposesRequiredArgumentSchema)
-{
-    for (const auto &definition : ToolRegistry::getToolDefinitions()) {
-        if (definition["function"]["name"].asString() == "get_flight_details") {
-            const auto &parameters = definition["function"]["parameters"];
-            EXPECT_EQ(parameters["properties"]["id"]["type"].asString(), "string");
-            ASSERT_EQ(parameters["required"].size(), 1U);
-            EXPECT_EQ(parameters["required"][0].asString(), "id");
-            return;
-        }
-    }
-    FAIL() << "get_flight_details was not registered";
-}
-
-TEST(ToolRegistryTest, RegistersRunwayReadAndWriteTools)
-{
-    const auto definitions = ToolRegistry::getToolDefinitions();
-    const std::set<std::string> expected{
-        "get_runway_status", "get_runway_by_id", "get_runway_by_code", "update_runway_status"};
-    std::set<std::string> found;
-    for (const auto &definition : definitions) {
-        const auto name = definition["function"]["name"].asString();
-        if (expected.contains(name)) found.insert(name);
-        if (name == "get_runway_by_id") {
-            EXPECT_EQ(definition["function"]["parameters"]["properties"]["runway_id"]["type"], "integer");
-            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "runway_id");
-        }
-        if (name == "update_runway_status")
-            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "status");
-    }
-    EXPECT_EQ(found, expected);
-
-    Json::Value byCode; byCode["runway_code"] = "08L";
-    EXPECT_EQ(ToolRegistry::executeTool("get_runway_by_code", byCode)["fake_tool"], "get_runway_by_code");
-    Json::Value update; update["runway_code"] = "08L"; update["status"] = "closed";
-    EXPECT_EQ(ToolRegistry::executeTool("update_runway_status", update)["fake_tool"], "update_runway_status");
-}
-
-TEST(ToolRegistryTest, RejectsUnknownToolWithoutDatabaseAccess)
-{
-    const auto result = ToolRegistry::executeTool("not_a_real_tool", Json::Value(Json::objectValue));
-    EXPECT_EQ(result["error"].asString(), "Unknown tool: not_a_real_tool");
-}
-
-TEST(ToolRegistryTest, ExecutesKnownToolThroughFakeWithoutDatabaseAccess)
-{
-    const auto result = ToolRegistry::executeTool("find_delayed_flights", Json::Value(Json::objectValue));
-    EXPECT_EQ(result["fake_tool"].asString(), "find_delayed_flights");
+    Json::Value status; status["flight_id"] = 1; status["status"] = "delayed";
+    EXPECT_EQ(ToolRegistry::executeTool("update_flight_status", status, authenticated())["fake_tool"], "update_flight_status");
+    Json::Value assignment; assignment["flight_number"] = "SB2101"; assignment["gate_number"] = "A03";
+    EXPECT_EQ(ToolRegistry::executeTool("assign_flight_to_gate", assignment, authenticated())["fake_tool"], "assign_flight_to_gate");
+    Json::Value runway; runway["runway_code"] = "08L/26R"; runway["status"] = "closed";
+    EXPECT_EQ(ToolRegistry::executeTool("update_runway_status", runway, authenticated())["fake_tool"], "update_runway_status");
+    Json::Value incident; incident["title"] = "Bird activity"; incident["description"] = "Near runway"; incident["severity"] = "HIGH";
+    EXPECT_EQ(ToolRegistry::executeTool("create_incident", incident, authenticated())["fake_tool"], "create_incident");
+    Json::Value resolve; resolve["id"] = 12;
+    EXPECT_EQ(ToolRegistry::executeTool("resolve_incident", resolve, authenticated())["fake_tool"], "resolve_incident");
 }

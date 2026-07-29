@@ -27,17 +27,22 @@ ConversationService fakeConversations(Json::Value history, bool owns, std::vecto
 }
 
 TEST(FlightServiceTest, ReturnsAllAndDelayedFlights) {
-    FlightService service({[] { return arrayWith("id", "1"); }, [] { return arrayWith("status", "DELAYED"); }, [](const std::string &) { return found(); }});
+    FlightService::Dependencies dependencies; dependencies.all = [] { return arrayWith("id", "1"); };
+    dependencies.delayed = [] { return arrayWith("status", "DELAYED"); }; dependencies.byId = [](const std::string &) { return found(); };
+    FlightService service(dependencies);
     EXPECT_EQ(service.getAll().size(), 1U); EXPECT_EQ(service.getDelayed()[0]["status"], "DELAYED");
 }
 TEST(FlightServiceTest, ReturnsFlightAndRejectsInvalidOrMissingId) {
-    FlightService service({[] { return Json::Value(); }, [] { return Json::Value(); }, [](const std::string &id) { if (id == "1") return found(); Json::Value v; v["found"] = false; return v; }});
+    FlightService::Dependencies dependencies; dependencies.all = [] { return Json::Value(); }; dependencies.delayed = [] { return Json::Value(); };
+    dependencies.byId = [](const std::string &id) { if (id == "1") return found(); Json::Value v; v["found"] = false; return v; };
+    FlightService service(dependencies);
     EXPECT_EQ(service.getById("1")["id"], "1");
     expectDomain(DomainErrorKind::Validation, [&] { service.getById("abc"); });
     expectDomain(DomainErrorKind::NotFound, [&] { service.getById("2"); });
 }
 TEST(FlightServiceTest, PropagatesControlledRepositoryFailure) {
-    FlightService service({[]() -> Json::Value { throw std::runtime_error("offline"); }, [] { return Json::Value(); }, [](const std::string &) { return Json::Value(); }});
+    FlightService::Dependencies dependencies; dependencies.all = []() -> Json::Value { throw std::runtime_error("offline"); };
+    FlightService service(dependencies);
     EXPECT_THROW(service.getAll(), std::runtime_error);
 }
 TEST(FlightServiceTest, LooksUpNumberAndValidatesSearchStatus) {
@@ -61,7 +66,8 @@ TEST(FlightServiceTest, UpdatesStatusAndMapsGateAssignmentConflicts) {
     expectDomain(DomainErrorKind::Conflict, [&] { service.assignFlightToGate("1", "3"); });
 }
 TEST(GateServiceTest, SeparatesAllAndAvailableQueries) {
-    GateService service({[] { return arrayWith("status", "OCCUPIED"); }, [] { return arrayWith("status", "AVAILABLE"); }});
+    GateService::Dependencies dependencies; dependencies.all = [] { return arrayWith("status", "OCCUPIED"); };
+    dependencies.available = [] { return arrayWith("status", "AVAILABLE"); }; GateService service(dependencies);
     EXPECT_EQ(service.getAll()[0]["status"], "OCCUPIED"); EXPECT_EQ(service.getAvailable()[0]["status"], "AVAILABLE");
 }
 TEST(GateServiceTest, ValidatesAndLooksUpGateIdentifiers) {
@@ -135,7 +141,7 @@ TEST(RunwayServiceTest, UpdatesStatusNormalizesAndReportsAffectedFlights) {
     deps.byCode = [](const std::string &code) { Json::Value r; r["found"] = code == "08L"; r["runway"]["id"] = 1; r["runway"]["runway_code"] = "08L"; r["runway"]["status"] = "OPERATIONAL"; return r; };
     std::string captured;
     deps.update = [&captured](int id, const std::string &status) { captured = status; return id == 1; };
-    deps.affectedFlights = [](int) { Json::Value list(Json::arrayValue), f; f["flight_number"] = "SB2101"; f["status"] = "SCHEDULED"; f["origin"] = "TLV"; f["destination"] = "LHR"; list.append(f); return list; };
+    deps.affectedFlights = [](int) { Json::Value list(Json::arrayValue), f; f["flight_number"] = "SB2101"; f["status"] = "SCHEDULED"; f["origin"] = "TLV"; f["destination"] = "LHR"; list.append(f); f["flight_number"] = "SB2100"; f["status"] = "LANDED"; list.append(f); f["flight_number"] = "SB2199"; f["status"] = "CANCELLED"; list.append(f); return list; };
     RunwayService service(deps);
     auto result = service.updateStatus("1", "closed");
     EXPECT_TRUE(result["updated"].asBool());

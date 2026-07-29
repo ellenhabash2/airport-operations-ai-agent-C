@@ -13,9 +13,9 @@ constexpr const char *kGateColumns =
 Json::Value gateRowToJson(const pqxx::row &row)
 {
     Json::Value gate;
-    gate["id"] = row["id"].c_str();
+    gate["id"] = row["id"].as<int>();
     gate["gate_number"] = row["gate_number"].c_str();
-    gate["terminal_id"] = row["terminal_id"].c_str();
+    gate["terminal_id"] = row["terminal_id"].as<int>();
     gate["terminal_code"] = row["terminal_code"].c_str();
     gate["status"] = row["status"].c_str();
     return gate;

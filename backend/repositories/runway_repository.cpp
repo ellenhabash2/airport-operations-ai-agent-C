@@ -50,7 +50,7 @@ Json::Value RunwayRepository::getRunwayByCode(const std::string &runwayCode)
 {
     Json::Value result;
     pqxx::params params; params.append(runwayCode);
-    auto runways = queryRunways("WHERE runway_code = $1", params);
+    auto runways = queryRunways("WHERE LOWER(runway_code) = LOWER($1)", params);
     result["found"] = !runways.empty();
     if (!runways.empty()) result["runway"] = runways[0];
     return result;

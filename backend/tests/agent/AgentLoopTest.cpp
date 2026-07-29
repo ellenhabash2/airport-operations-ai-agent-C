@@ -146,6 +146,29 @@ TEST(AgentLoopTest, InvestigatesCriticalRunwayIncidentsWithoutWrites) {
     EXPECT_EQ(calls, (std::vector<std::string>{"get_incidents_by_severity", "search_incidents"}));
     EXPECT_EQ(result.toolsUsed.size(), 2U); EXPECT_NE(result.answer.find("active"), std::string::npos);
 }
+
+TEST(AgentLoopTest, LooksUpRunwayBeforeAuthenticatedClosure) {
+    Json::Value lookup; lookup["runway_code"] = "08L/26R";
+    Json::Value update; update["runway_id"] = 1; update["status"] = "closed";
+    auto first = toolCall("get_runway_by_code", lookup);
+    auto second = toolCall("update_runway_status", update);
+    first["choices"][0]["message"]["tool_calls"][0]["id"] = "runway-lookup";
+    second["choices"][0]["message"]["tool_calls"][0]["id"] = "runway-update";
+    FakeLLMClient fake{{first, second, answer("Runway 08L/26R is closed; SB2101 is affected.")}};
+    std::vector<std::pair<std::string, Json::Value>> calls;
+    auto runwayExecutor = [&](const std::string &name, const Json::Value &args) {
+        calls.emplace_back(name, args); Json::Value result;
+        if (name == "get_runway_by_code") result["id"] = 1;
+        else { result["updated"] = true; result["affected_flights"].append("SB2101"); }
+        return result;
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &m, const auto &t) { return fake.chat(m, t); }, runwayExecutor);
+    ASSERT_EQ(calls.size(), 2U); EXPECT_EQ(calls[0].second["runway_code"], "08L/26R");
+    EXPECT_EQ(calls[1].second["runway_id"], 1); EXPECT_EQ(calls[1].second["status"], "closed");
+    ASSERT_EQ(result.toolsUsed.size(), 2U); EXPECT_EQ(result.toolsUsed[0], "get_runway_by_code");
+    EXPECT_EQ(result.toolsUsed[1], "update_runway_status"); EXPECT_FALSE(result.answer.empty());
+}
 TEST(AgentLoopTest, SendsMalformedArgumentsBackAsToolError) {
     FakeLLMClient fake{{toolCall("known", Json::Value("{broken")), answer("Recovered")}};
     auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),

@@ -207,7 +207,7 @@ TEST(ConversationServiceTest, CreatesListsLoadsAndSavesRoles) {
 }
 TEST(ConversationServiceTest, RejectsNonOwner) {
     auto service = fakeConversations(Json::Value(Json::arrayValue), false);
-    expectDomain(DomainErrorKind::Forbidden, [&] { service.loadOwnedMessages("9", "8"); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.loadOwnedMessages("9", "8"); });
 }
 TEST(AgentServiceTest, HandlesNewAndOwnedConversationAndPersistsVisibleTurns) {
     std::vector<std::string> roles; Json::Value history = arrayWith("role", "assistant"); history[0]["content"] = "Earlier";
@@ -220,8 +220,49 @@ TEST(AgentServiceTest, HandlesNewAndOwnedConversationAndPersistsVisibleTurns) {
 TEST(AgentServiceTest, RejectsNonOwnerAndDoesNotSaveFalseProviderSuccess) {
     std::vector<std::string> roles;
     AgentService denied(fakeConversations(Json::Value(Json::arrayValue), false, &roles), [](Json::Value, const ToolExecutionContext &) { return AgentLoop::Result{}; });
-    expectDomain(DomainErrorKind::Forbidden, [&] { denied.query("7", "x", std::string("5")); });
+    expectDomain(DomainErrorKind::NotFound, [&] { denied.query("7", "x", std::string("5")); });
     AgentService failed(fakeConversations(Json::Value(Json::arrayValue), true, &roles), [](Json::Value, const ToolExecutionContext &) { AgentLoop::Result r; r.providerFailed = true; return r; });
     expectDomain(DomainErrorKind::ProviderUnavailable, [&] { failed.query("7", "x", std::nullopt); });
     ASSERT_FALSE(roles.empty()); EXPECT_EQ(roles.back(), "user");
+}
+
+TEST(ConversationServiceTest, GeneratesDeterministicNormalizedTitles) {
+    EXPECT_EQ(ConversationService::titleFromFirstMessage("  Full\n operations   status  "), "Full operations status");
+    EXPECT_EQ(ConversationService::titleFromFirstMessage(" \t "), "New conversation");
+    const auto title = ConversationService::titleFromFirstMessage(std::string(100, 'a'));
+    EXPECT_EQ(title.size(), 80U); EXPECT_EQ(title.substr(77), "...");
+}
+
+TEST(ConversationServiceTest, ReplaysCompleteBoundedStructuredTurnsAndLegacyRows) {
+    Json::Value rows(Json::arrayValue);
+    auto add = [&](const char *role, const char *content, const char *turn, const Json::Value &payload = Json::Value()) {
+        Json::Value row; row["role"] = role; row["content"] = content;
+        if (*turn) row["turn_id"] = turn; if (!payload.isNull()) row["provider_payload"] = payload;
+        rows.append(row);
+    };
+    add("user", "old", ""); add("assistant", "old answer", "");
+    Json::Value user; user["role"] = "user"; user["content"] = "Which flights are delayed?";
+    add("user", user["content"].asCString(), "turn-2", user);
+    Json::Value call; call["role"] = "assistant"; call["content"] = Json::nullValue;
+    call["tool_calls"][0]["id"] = "call-delayed-1"; call["tool_calls"][0]["function"]["name"] = "find_delayed_flights";
+    add("assistant", "", "turn-2", call);
+    Json::Value tool; tool["role"] = "tool"; tool["tool_call_id"] = "call-delayed-1"; tool["content"] = "[{\"terminal\":\"A\"}]";
+    add("tool", tool["content"].asCString(), "turn-2", tool);
+    Json::Value final; final["role"] = "assistant"; final["content"] = "One delayed flight";
+    add("assistant", final["content"].asCString(), "turn-2", final);
+    auto service = ConversationService({
+        [](const std::string &) { return Json::Value(); }, {},
+        [](const std::string &, const std::string &) { return true; }, {},
+        [rows](const std::string &, const std::string &) { return rows; }});
+    const auto replay = service.loadReplayHistory("1", "7", 1);
+    ASSERT_EQ(replay.size(), 4U); EXPECT_EQ(replay[1]["tool_calls"][0]["id"], "call-delayed-1");
+    EXPECT_EQ(replay[2]["tool_call_id"], "call-delayed-1");
+}
+
+TEST(ConversationServiceTest, BoundsHistoryConfiguration) {
+    unsetenv("AGENT_HISTORY_MAX_TURNS"); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 30U);
+    setenv("AGENT_HISTORY_MAX_TURNS", "0", 1); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 1U);
+    setenv("AGENT_HISTORY_MAX_TURNS", "1000", 1); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 100U);
+    setenv("AGENT_HISTORY_MAX_TURNS", "bad", 1); EXPECT_EQ(ConversationService::historyMaxTurnsFromEnvironment(), 30U);
+    unsetenv("AGENT_HISTORY_MAX_TURNS");
 }

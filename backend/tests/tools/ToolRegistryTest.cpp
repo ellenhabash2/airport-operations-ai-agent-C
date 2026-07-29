@@ -6,7 +6,7 @@ TEST(ToolRegistryTest, RegistersEverySupportedToolExactlyOnce)
 {
     const auto definitions = ToolRegistry::getToolDefinitions();
     ASSERT_TRUE(definitions.isArray());
-    EXPECT_EQ(definitions.size(), 19U);
+    EXPECT_EQ(definitions.size(), 22U);
     std::set<std::string> names;
     for (const auto &definition : definitions)
         names.insert(definition["function"]["name"].asString());
@@ -68,6 +68,30 @@ TEST(ToolRegistryTest, ExposesRequiredArgumentSchema)
         }
     }
     FAIL() << "get_flight_details was not registered";
+}
+
+TEST(ToolRegistryTest, RegistersRunwayReadAndWriteTools)
+{
+    const auto definitions = ToolRegistry::getToolDefinitions();
+    const std::set<std::string> expected{
+        "get_runway_status", "get_runway_by_id", "get_runway_by_code", "update_runway_status"};
+    std::set<std::string> found;
+    for (const auto &definition : definitions) {
+        const auto name = definition["function"]["name"].asString();
+        if (expected.contains(name)) found.insert(name);
+        if (name == "get_runway_by_id") {
+            EXPECT_EQ(definition["function"]["parameters"]["properties"]["runway_id"]["type"], "integer");
+            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "runway_id");
+        }
+        if (name == "update_runway_status")
+            EXPECT_EQ(definition["function"]["parameters"]["required"][0], "status");
+    }
+    EXPECT_EQ(found, expected);
+
+    Json::Value byCode; byCode["runway_code"] = "08L";
+    EXPECT_EQ(ToolRegistry::executeTool("get_runway_by_code", byCode)["fake_tool"], "get_runway_by_code");
+    Json::Value update; update["runway_code"] = "08L"; update["status"] = "closed";
+    EXPECT_EQ(ToolRegistry::executeTool("update_runway_status", update)["fake_tool"], "update_runway_status");
 }
 
 TEST(ToolRegistryTest, RejectsUnknownToolWithoutDatabaseAccess)

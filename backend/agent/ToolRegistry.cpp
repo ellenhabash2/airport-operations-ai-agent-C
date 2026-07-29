@@ -92,6 +92,15 @@ std::optional<Json::Value> validate(const ToolDefinition &definition, const Json
         if (spec.isMember("enum") && !enumContains(spec["enum"], value))
             return errorResult("invalid_arguments", name + " has an unsupported value.");
     }
+    if (definition.name == "assign_flight_to_gate") {
+        const bool hasFlight = args.isMember("flight_id") || args.isMember("flight_number");
+        const bool hasGate = args.isMember("gate_id") || args.isMember("gate_number");
+        if (!hasFlight || !hasGate)
+            return errorResult("invalid_arguments", "A flight identifier and a gate identifier are required.");
+    }
+    if (definition.name == "update_runway_status" &&
+        !args.isMember("runway_id") && !args.isMember("runway_code"))
+        return errorResult("invalid_arguments", "A runway_id or runway_code is required.");
     return std::nullopt;
 }
 

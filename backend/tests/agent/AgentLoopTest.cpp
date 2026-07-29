@@ -49,6 +49,18 @@ TEST(AgentLoopTest, ExecutesThreeToolChain) {
         [&](const auto &m, const auto &t) { return fake.chat(m, t); }, executor);
     EXPECT_EQ(result.answer, "Combined"); EXPECT_EQ(result.toolsUsed.size(), 3U);
 }
+TEST(AgentLoopTest, CombinesDelayedFlightsActiveIncidentsAndWeather) {
+    FakeLLMClient fake{{toolCall("find_delayed_flights"), toolCall("get_active_incidents"),
+                        toolCall("get_latest_weather"), answer("Two delays, one active incident, clear weather.")}};
+    std::vector<std::string> executed;
+    auto operationsExecutor = [&](const std::string &name, const Json::Value &) {
+        executed.push_back(name); Json::Value value; value["source"] = name; return value;
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &m, const auto &t) { return fake.chat(m, t); }, operationsExecutor);
+    EXPECT_EQ(executed, (std::vector<std::string>{"find_delayed_flights", "get_active_incidents", "get_latest_weather"}));
+    EXPECT_EQ(result.toolsUsed.size(), 3U); EXPECT_NE(result.answer.find("weather"), std::string::npos);
+}
 TEST(AgentLoopTest, ExecutesIncidentManagementScenariosWithFakeProvider) {
     Json::Value severity; severity["severity"] = "CRITICAL";
     Json::Value search; search["query"] = "birds near the runway";
@@ -99,6 +111,40 @@ TEST(AgentLoopTest, ResolvesFlightTerminalAndOtherFlightsWithThreeTools) {
     EXPECT_EQ(result.toolsUsed[1], "get_terminal_status");
     EXPECT_EQ(result.toolsUsed[2], "get_flights_by_terminal");
     EXPECT_NE(result.answer.find("SB2101"), std::string::npos);
+}
+TEST(AgentLoopTest, FindsAvailableGateBeforeAuthenticatedAssignment) {
+    Json::Value flight; flight["flight_number"] = "SB2101";
+    Json::Value assignment; assignment["flight_id"] = 21; assignment["gate_id"] = 3;
+    FakeLLMClient fake{{toolCall("get_flight_by_number", flight), toolCall("get_available_gates"),
+                        toolCall("assign_flight_to_gate", assignment), answer("SB2101 moved to A03.")}};
+    std::vector<std::pair<std::string, Json::Value>> calls;
+    auto gateExecutor = [&](const std::string &name, const Json::Value &args) {
+        calls.emplace_back(name, args); Json::Value value;
+        if (name == "get_flight_by_number") value["id"] = 21;
+        else if (name == "get_available_gates") { Json::Value gate; gate["id"] = 3; gate["number"] = "A03"; value.append(gate); }
+        else value["assigned"] = true;
+        return value;
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &m, const auto &t) { return fake.chat(m, t); }, gateExecutor);
+    ASSERT_EQ(calls.size(), 3U); EXPECT_EQ(calls[2].first, "assign_flight_to_gate");
+    EXPECT_EQ(calls[2].second["flight_id"], 21); EXPECT_EQ(calls[2].second["gate_id"], 3);
+    EXPECT_EQ(result.toolsUsed.size(), 3U); EXPECT_NE(result.answer.find("A03"), std::string::npos);
+}
+
+TEST(AgentLoopTest, InvestigatesCriticalRunwayIncidentsWithoutWrites) {
+    Json::Value severity; severity["severity"] = "CRITICAL";
+    Json::Value query; query["query"] = "runway";
+    FakeLLMClient fake{{toolCall("get_incidents_by_severity", severity),
+                        toolCall("search_incidents", query), answer("Critical runway incident is active.")}};
+    std::vector<std::string> calls;
+    auto incidentExecutor = [&](const std::string &name, const Json::Value &) {
+        calls.push_back(name); Json::Value value; value["status"] = "OPEN"; return value;
+    };
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &m, const auto &t) { return fake.chat(m, t); }, incidentExecutor);
+    EXPECT_EQ(calls, (std::vector<std::string>{"get_incidents_by_severity", "search_incidents"}));
+    EXPECT_EQ(result.toolsUsed.size(), 2U); EXPECT_NE(result.answer.find("active"), std::string::npos);
 }
 TEST(AgentLoopTest, SendsMalformedArgumentsBackAsToolError) {
     FakeLLMClient fake{{toolCall("known", Json::Value("{broken")), answer("Recovered")}};

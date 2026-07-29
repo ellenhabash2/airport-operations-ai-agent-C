@@ -87,6 +87,9 @@ TEST(ToolRegistryTest, RejectsUnknownAndInvalidArgumentsSafely)
     Json::Value wrong; wrong["severity"] = "URGENT";
     result = ToolRegistry::executeTool("get_incidents_by_severity", wrong);
     EXPECT_EQ(result["error"]["code"], "invalid_arguments");
+    Json::Value incomplete; incomplete["flight_id"] = 1;
+    result = ToolRegistry::executeTool("assign_flight_to_gate", incomplete, authenticated());
+    EXPECT_EQ(result["error"]["code"], "invalid_arguments");
 }
 
 TEST(ToolRegistryTest, ExecutesReadToolsAndLegacyAliasThroughSameRegistry)

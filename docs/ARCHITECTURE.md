@@ -43,13 +43,13 @@ Dependencies are explicit function objects, allowing service tests to use determ
 - `LLMConfig` reads provider-neutral runtime configuration for the active Gemini provider.
 - `LLMClient` serializes OpenAI-compatible requests and handles TLS HTTP, bounded responses, retries, and sanitized errors.
 - `AgentLoop` coordinates provider iterations, assistant tool calls, matching tool result IDs, multiple calls, and bounded iterations.
-- `ToolRegistry` is the only name-to-function dispatch boundary and publishes the nine JSON schemas.
+- `ToolRegistry` is the only name-to-function dispatch boundary. One deterministic definition map owns every tool's name, description, JSON Schema, read/write access, and handler, and generates provider declarations from that metadata.
 
 `AgentService` coordinates conversation context and persistence around `AgentLoop`; it does not absorb provider/tool iteration behavior.
 
 ### Tool implementations
 
-`backend/tools` parses agent-facing arguments, delegates to the same domain services as REST, and converts domain errors to safe tool JSON. Tool names and schemas remain owned by `ToolRegistry`.
+`backend/tools` adapts agent-facing arguments and delegates to the same domain services as REST. `ToolRegistry` performs shared shape validation, requires authenticated context for writes, rejects duplicate names, and converts unknown or unexpected failures to controlled errors. Neither layer contains SQL.
 
 ### Repositories
 

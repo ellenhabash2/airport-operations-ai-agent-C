@@ -1,5 +1,6 @@
 #pragma once
 #include "agent/AgentLoop.h"
+#include "agent/ToolRegistry.h"
 #include "conversation_service.h"
 #include <functional>
 #include <json/json.h>
@@ -10,7 +11,7 @@ struct AgentResult { std::string answer; std::string conversationId; Json::Value
 
 class AgentService {
 public:
-    using Runner = std::function<AgentLoop::Result(Json::Value)>;
+    using Runner = std::function<AgentLoop::Result(Json::Value, const ToolExecutionContext &)>;
     AgentService();
     AgentService(ConversationService conversations, Runner runner);
     AgentResult query(const std::string &userId, const std::string &query,

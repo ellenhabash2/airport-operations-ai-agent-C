@@ -205,7 +205,7 @@ TEST(ConversationServiceTest, RejectsNonOwner) {
 }
 TEST(AgentServiceTest, HandlesNewAndOwnedConversationAndPersistsVisibleTurns) {
     std::vector<std::string> roles; Json::Value history = arrayWith("role", "assistant"); history[0]["content"] = "Earlier";
-    auto runner = [](Json::Value messages) { AgentLoop::Result result; result.answer = "All clear"; result.toolsUsed.append("get_runway_status"); EXPECT_GE(messages.size(), 2U); return result; };
+    auto runner = [](Json::Value messages, const ToolExecutionContext &context) { AgentLoop::Result result; result.answer = "All clear"; result.toolsUsed.append("get_runway_status"); EXPECT_GE(messages.size(), 2U); EXPECT_TRUE(context.authenticated); EXPECT_EQ(context.userId, "7"); return result; };
     AgentService service(fakeConversations(history, true, &roles), runner);
     auto fresh = service.query("7", "status", std::nullopt); EXPECT_EQ(fresh.conversationId, "9"); EXPECT_EQ(fresh.toolsUsed.size(), 1U);
     auto existing = service.query("7", "again", std::string("5")); EXPECT_EQ(existing.conversationId, "5");
@@ -213,9 +213,9 @@ TEST(AgentServiceTest, HandlesNewAndOwnedConversationAndPersistsVisibleTurns) {
 }
 TEST(AgentServiceTest, RejectsNonOwnerAndDoesNotSaveFalseProviderSuccess) {
     std::vector<std::string> roles;
-    AgentService denied(fakeConversations(Json::Value(Json::arrayValue), false, &roles), [](Json::Value) { return AgentLoop::Result{}; });
+    AgentService denied(fakeConversations(Json::Value(Json::arrayValue), false, &roles), [](Json::Value, const ToolExecutionContext &) { return AgentLoop::Result{}; });
     expectDomain(DomainErrorKind::Forbidden, [&] { denied.query("7", "x", std::string("5")); });
-    AgentService failed(fakeConversations(Json::Value(Json::arrayValue), true, &roles), [](Json::Value) { AgentLoop::Result r; r.providerFailed = true; return r; });
+    AgentService failed(fakeConversations(Json::Value(Json::arrayValue), true, &roles), [](Json::Value, const ToolExecutionContext &) { AgentLoop::Result r; r.providerFailed = true; return r; });
     expectDomain(DomainErrorKind::ProviderUnavailable, [&] { failed.query("7", "x", std::nullopt); });
     ASSERT_FALSE(roles.empty()); EXPECT_EQ(roles.back(), "user");
 }

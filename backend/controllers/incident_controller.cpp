@@ -20,7 +20,7 @@ HttpResponsePtr incidentError(const DomainError &error) {
 }
 }
 
-void IncidentController::getIncidents(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void IncidentController::getIncidents(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {
@@ -115,7 +115,7 @@ void IncidentController::createIncident(const HttpRequestPtr &req, std::function
     }
 }
 
-void IncidentController::resolveIncident(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, std::string id)
+void IncidentController::resolveIncident(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback, std::string id)
 {
     try
     {

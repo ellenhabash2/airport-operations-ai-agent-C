@@ -3,7 +3,7 @@
 #include <json/json.h>
 #include "database/database_manager.h"
 
-void HealthController::health(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void HealthController::health(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     // A health check that always says "ok" is worse than none: the Docker
     // Compose healthcheck (curl -f /health) and any monitoring would treat the

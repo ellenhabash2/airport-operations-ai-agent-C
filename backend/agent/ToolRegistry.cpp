@@ -61,6 +61,16 @@ Json::Value ToolRegistry::getToolDefinitions()
     // Read tools
     tools.append(makeTool("find_delayed_flights", "Returns all flights that are currently delayed."));
     tools.append(makeTool("get_active_incidents", "Returns airport operational incidents that still need attention (status OPEN or INVESTIGATING; excludes RESOLVED)."));
+    tools.append(makeTool("get_all_incidents", "Returns all airport operational incidents, including resolved incidents."));
+    {
+        auto tool = makeTool("get_incidents_by_severity", "Returns all incidents matching a severity, including resolved incidents.");
+        auto severity = property("string", "Incident severity");
+        for (const char *value : {"LOW", "MEDIUM", "HIGH", "CRITICAL"}) severity["enum"].append(value);
+        tool["function"]["parameters"]["properties"]["severity"] = severity;
+        tool["function"]["parameters"]["required"].append("severity"); tools.append(tool);
+    }
+    tools.append(makeToolWithParam("search_incidents", "Searches incident title, description, and location using case-insensitive partial matching.",
+                                   "query", "Text to search for literally."));
     tools.append(makeTool("get_all_flights", "Returns the full list of flights."));
     tools.append(makeToolWithParam("get_flight_details", "Returns full details of a single flight by its numeric id.",
                                    "id", "The numeric flight id, e.g. \"42\"."));
@@ -176,6 +186,9 @@ Json::Value ToolRegistry::executeTool(const std::string &name, const Json::Value
 {
     if (name == "find_delayed_flights")   return Tools::find_delayed_flights();
     if (name == "get_active_incidents")   return Tools::get_active_incidents();
+    if (name == "get_all_incidents")      return Tools::get_all_incidents();
+    if (name == "get_incidents_by_severity") return Tools::get_incidents_by_severity(args);
+    if (name == "search_incidents")       return Tools::search_incidents(args);
     if (name == "get_all_flights")        return Tools::get_all_flights();
     if (name == "get_flight_details")     return Tools::get_flight_details(args.get("id", "").asString());
     if (name == "get_flight_by_id")       return Tools::get_flight_by_id(args["flight_id"].isInt() ? std::to_string(args["flight_id"].asInt()) : "");

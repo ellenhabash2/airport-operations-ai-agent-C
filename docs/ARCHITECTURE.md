@@ -31,7 +31,7 @@ AeroMind favors visible separation of responsibilities, small testable agent com
 - `GateService` owns gate ID/number validation, all/available lookups, and the shared availability and operational-status rules.
 - `TerminalService` owns terminal existence validation, terminal status, and flights-by-terminal workflows.
 - `RunwayService` exposes current runway status.
-- `IncidentService` owns incident input validation and resolution outcomes, including the already-resolved conflict.
+- `IncidentService` owns incident input, severity, search, ID validation, and resolution outcomes, including the already-resolved conflict. REST endpoints and all six incident tools share this service.
 - `WeatherService` owns current weather input validation and lookup/create operations.
 - `ConversationService` owns creation, ownership checks, ordered history access, and visible-message persistence.
 - `AgentService` coordinates conversation context, `AgentLoop`, and visible turn persistence.

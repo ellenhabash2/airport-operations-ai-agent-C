@@ -14,6 +14,25 @@ TEST(ToolRegistryTest, RegistersEverySupportedToolExactlyOnce)
     EXPECT_TRUE(names.contains("find_delayed_flights"));
     EXPECT_TRUE(names.contains("create_incident"));
     EXPECT_TRUE(names.contains("resolve_incident"));
+    EXPECT_TRUE(names.contains("get_all_incidents"));
+    EXPECT_TRUE(names.contains("get_incidents_by_severity"));
+    EXPECT_TRUE(names.contains("search_incidents"));
+}
+
+TEST(ToolRegistryTest, RegistersExpandedIncidentToolsWithValidatedSchemas)
+{
+    for (const auto &definition : ToolRegistry::getToolDefinitions()) {
+        const auto name = definition["function"]["name"].asString();
+        if (name == "get_incidents_by_severity") {
+            const auto &severity = definition["function"]["parameters"]["properties"]["severity"];
+            EXPECT_EQ(severity["enum"].size(), 4U); EXPECT_EQ(severity["enum"][3], "CRITICAL");
+        }
+    }
+    EXPECT_EQ(ToolRegistry::executeTool("get_all_incidents", Json::Value(Json::objectValue))["fake_tool"], "get_all_incidents");
+    Json::Value severity; severity["severity"] = "HIGH";
+    EXPECT_EQ(ToolRegistry::executeTool("get_incidents_by_severity", severity)["fake_tool"], "get_incidents_by_severity");
+    Json::Value query; query["query"] = "bird";
+    EXPECT_EQ(ToolRegistry::executeTool("search_incidents", query)["fake_tool"], "search_incidents");
 }
 
 

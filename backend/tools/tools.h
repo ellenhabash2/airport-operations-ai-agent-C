@@ -11,6 +11,9 @@ public:
     // ---- Read tools ----
     static Json::Value find_delayed_flights();
     static Json::Value get_active_incidents();
+    static Json::Value get_all_incidents();
+    static Json::Value get_incidents_by_severity(const Json::Value &arguments);
+    static Json::Value search_incidents(const Json::Value &arguments);
     static Json::Value get_all_flights();
     static Json::Value get_flight_details(const std::string &id);
     static Json::Value get_flight_by_id(const std::string &id);

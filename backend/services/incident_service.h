@@ -6,11 +6,15 @@ class IncidentService {
 public:
     struct Dependencies {
         std::function<Json::Value()> all, active;
+        std::function<Json::Value(const std::string &)> bySeverity, search, byId;
         std::function<Json::Value(const std::string &, const std::string &, const std::string &, const std::string &)> create;
         std::function<Json::Value(const std::string &)> resolve;
     };
     IncidentService(); explicit IncidentService(Dependencies dependencies);
     Json::Value getAll() const; Json::Value getActive() const;
+    Json::Value getBySeverity(const std::string &) const;
+    Json::Value search(const std::string &) const;
+    Json::Value getById(const std::string &) const;
     Json::Value create(const std::string &, const std::string &, const std::string &, const std::string &) const;
     Json::Value resolve(const std::string &) const;
 private: Dependencies dependencies_;

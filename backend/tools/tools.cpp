@@ -30,6 +30,29 @@ Json::Value Tools::get_active_incidents()
     return safely([] { return IncidentService{}.getActive(); });
 }
 
+Json::Value Tools::get_all_incidents()
+{
+    return safely([] { return IncidentService{}.getAll(); });
+}
+
+Json::Value Tools::get_incidents_by_severity(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("severity") || !arguments["severity"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "severity must be a string");
+        return IncidentService{}.getBySeverity(arguments["severity"].asString());
+    });
+}
+
+Json::Value Tools::search_incidents(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("query") || !arguments["query"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "query must be a string");
+        return IncidentService{}.search(arguments["query"].asString());
+    });
+}
+
 // Returns all flights.
 Json::Value Tools::get_all_flights()
 {

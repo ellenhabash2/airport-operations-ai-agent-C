@@ -166,6 +166,33 @@ All terminal routes are unauthenticated, matching the operational read policy. S
 - **Success:** `200` with `status` and `data` array.
 - **Failure:** `500` unexpected database failure.
 
+Results include both active and resolved incidents, ordered by `created_at DESC, id DESC`.
+
+### List active incidents
+
+- **Method/route:** `GET /incidents/active`
+- **Authentication:** None
+- **Purpose:** Return only `OPEN` and `INVESTIGATING` incidents.
+- **Success:** `200` with `status` and an array under `data`, including when empty.
+
+### Search incidents
+
+- **Method/route:** `GET /incidents/search?q={query}`
+- **Authentication:** None
+- **Purpose:** Case-insensitive partial search of title, description, and location.
+- **Validation:** After trimming, `q` must contain 1–200 characters.
+- **Literal matching:** `%`, `_`, and `\` are escaped and do not act as SQL wildcards.
+- **Success:** `200` with an array under `data`, including when no records match.
+- **Failure:** `400` missing, blank, or oversized query.
+
+### Filter incidents by severity
+
+- **Method/route:** `GET /incidents/severity/{severity}`
+- **Authentication:** None
+- **Validation:** Case-insensitive `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`.
+- **Success:** `200` with all matching active and resolved incidents under `data`, including when empty.
+- **Failure:** `400` unsupported severity.
+
 ### Create incident
 
 - **Method/route:** `POST /incidents`
@@ -184,8 +211,8 @@ All terminal routes are unauthenticated, matching the operational read policy. S
 
 - **Method/route:** `PATCH /incidents/{id}/resolve`
 - **Authentication:** JWT
-- **Validation:** `id` must contain decimal digits.
-- **Side effect:** Changes status to `RESOLVED` and records `resolved_at`.
+- **Validation:** `id` must be a positive decimal integer.
+- **Side effect:** Atomically changes a non-resolved incident to `RESOLVED` and records `resolved_at`.
 - **Success:** `200` with message `Incident resolved` and the updated incident.
 - **Failures:** `400` invalid ID; `401` invalid authentication; `404` incident absent; `409` incident already resolved; `500` unexpected failure.
 

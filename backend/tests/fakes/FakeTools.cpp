@@ -10,6 +10,9 @@ Json::Value fakeResult(const std::string &name) {
 
 Json::Value Tools::find_delayed_flights() { return fakeResult("find_delayed_flights"); }
 Json::Value Tools::get_active_incidents() { return fakeResult("get_active_incidents"); }
+Json::Value Tools::get_all_incidents() { return fakeResult("get_all_incidents"); }
+Json::Value Tools::get_incidents_by_severity(const Json::Value &) { return fakeResult("get_incidents_by_severity"); }
+Json::Value Tools::search_incidents(const Json::Value &) { return fakeResult("search_incidents"); }
 Json::Value Tools::get_all_flights() { return fakeResult("get_all_flights"); }
 Json::Value Tools::get_flight_details(const std::string &) { return fakeResult("get_flight_details"); }
 Json::Value Tools::get_flight_by_id(const std::string &) { return fakeResult("get_flight_by_id"); }

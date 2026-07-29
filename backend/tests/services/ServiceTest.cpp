@@ -148,24 +148,42 @@ TEST(RunwayServiceTest, UpdatesStatusNormalizesAndReportsAffectedFlights) {
     expectDomain(DomainErrorKind::Validation, [&] { service.updateStatus("1", "flying"); });
 }
 TEST(IncidentServiceTest, ListsAndCreatesValidIncident) {
-    IncidentService service({[] { return arrayWith("id", "1"); }, [] { return arrayWith("status", "OPEN"); },
-        [](const std::string &title, const std::string &, const std::string &, const std::string &) { Json::Value v; v["title"] = title; return v; },
-        [](const std::string &) { return Json::Value(); }});
+    IncidentService::Dependencies deps;
+    deps.all = [] { return arrayWith("id", "1"); }; deps.active = [] { return arrayWith("status", "OPEN"); };
+    deps.create = [](const std::string &title, const std::string &, const std::string &severity, const std::string &) { Json::Value v; v["title"] = title; v["severity"] = severity; return v; };
+    IncidentService service(deps);
     EXPECT_EQ(service.getAll().size(), 1U); EXPECT_EQ(service.getActive()[0]["status"], "OPEN");
     EXPECT_EQ(service.create("Leak", "Details", "HIGH", "T1")["title"], "Leak");
+    EXPECT_EQ(service.create(" Leak ", " Details ", "high", " T1 ")["severity"], "HIGH");
 }
 TEST(IncidentServiceTest, RejectsInvalidCreateInputs) {
-    IncidentService service({{}, {}, [](const auto &, const auto &, const auto &, const auto &) { return Json::Value(); }, {}});
+    IncidentService::Dependencies deps; deps.create = [](const auto &, const auto &, const auto &, const auto &) { return Json::Value(); };
+    IncidentService service(deps);
     expectDomain(DomainErrorKind::Validation, [&] { service.create("", "Details", "HIGH", ""); });
     expectDomain(DomainErrorKind::Validation, [&] { service.create("Leak", "Details", "VERY_HIGH", ""); });
 }
 TEST(IncidentServiceTest, ResolvesAndCentralizesResolutionErrors) {
     auto resolver = [](const std::string &id) { Json::Value v; v["found"] = id != "2"; v["already_resolved"] = id == "3"; v["incident"]["id"] = id; return v; };
-    IncidentService service({{}, {}, {}, resolver});
+    IncidentService::Dependencies deps; deps.resolve = resolver; IncidentService service(deps);
     EXPECT_EQ(service.resolve("1")["id"], "1");
     expectDomain(DomainErrorKind::Validation, [&] { service.resolve("bad"); });
     expectDomain(DomainErrorKind::NotFound, [&] { service.resolve("2"); });
     expectDomain(DomainErrorKind::Conflict, [&] { service.resolve("3"); });
+}
+TEST(IncidentServiceTest, FiltersSearchesAndLooksUpIncidents) {
+    std::string severitySeen, querySeen;
+    IncidentService::Dependencies deps;
+    deps.bySeverity = [&](const std::string &severity) { severitySeen = severity; return Json::Value(Json::arrayValue); };
+    deps.search = [&](const std::string &query) { querySeen = query; return Json::Value(Json::arrayValue); };
+    deps.byId = [](const std::string &id) { Json::Value value; if (id == "1") value["id"] = id; return value; };
+    IncidentService service(deps);
+    EXPECT_TRUE(service.getBySeverity(" critical ").empty()); EXPECT_EQ(severitySeen, "CRITICAL");
+    EXPECT_TRUE(service.search(" bird ").empty()); EXPECT_EQ(querySeen, "bird");
+    EXPECT_EQ(service.getById("1")["id"], "1");
+    expectDomain(DomainErrorKind::Validation, [&] { service.getBySeverity("urgent"); });
+    expectDomain(DomainErrorKind::Validation, [&] { service.search("  "); });
+    expectDomain(DomainErrorKind::Validation, [&] { service.getById("0"); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getById("2"); });
 }
 TEST(WeatherServiceTest, ReadsAndCreatesValidWeather) {
     WeatherService service({[] { return arrayWith("condition", "CLEAR"); }, [] { Json::Value v; v["condition"] = "CLEAR"; return v; },

@@ -254,7 +254,7 @@ Results include both active and resolved incidents, ordered by `created_at DESC,
 - **Authentication:** JWT
 - **Purpose:** Start a conversation or continue an owned conversation through Gemini and registered tools.
 - **Body:** Required non-blank string `query`; optional integer or decimal-string `conversation_id`.
-- **Business rules:** A supplied conversation must belong to the authenticated user. The loop has a bounded number of iterations. User and final assistant messages are persisted.
+- **Business rules:** A supplied conversation must belong to the authenticated user. The loop has a bounded number of iterations. Complete user, assistant tool-call, tool-result, and final assistant messages are persisted and replayed by complete turn.
 - **Success:** `200`.
 
 ```json
@@ -267,7 +267,7 @@ Results include both active and resolved incidents, ordered by `created_at DESC,
 }
 ```
 
-- **Failures:** `400` missing/blank query or invalid conversation ID; `401` invalid authentication; `403` conversation not owned (including inaccessible IDs); `500` persistence/internal failure; `502` Gemini request failed. Raw provider details are never returned.
+- **Failures:** `400` missing/blank query or invalid conversation ID; `401` invalid authentication; `404` conversation absent or inaccessible; `500` persistence/internal failure; `502` Gemini request failed. Raw provider details are never returned.
 
 ### List conversation history
 
@@ -283,6 +283,13 @@ Results include both active and resolved incidents, ordered by `created_at DESC,
 - **Authentication:** JWT
 - **Purpose:** Return chronological messages for one owned conversation.
 - **Success:** `200` with `status`, `conversation_id`, and `messages`.
-- **Failures:** `401` invalid authentication; `403` conversation absent or not owned; `500` unexpected database failure.
+- **Failures:** `401` invalid authentication; `404` conversation absent or inaccessible; `500` unexpected database failure.
 
-Each message includes `id`, `conversation_id`, `role`, `content`, and `created_at`. Long-term history stores visible user and assistant turns. Temporary provider tool-call objects stay within the active agent iteration so invalid standalone tool messages are not replayed later.
+Each message retains the existing fields and may include safe normalized tool, presentation, turn, and metadata fields. Provider-only payloads are not exposed by this endpoint.
+
+### Delete a conversation
+
+- **Method/route:** `DELETE /agent/conversations/{id}`
+- **Authentication:** Bearer JWT.
+- **Success:** `200` with `deleted: true`; messages are removed by cascade.
+- **Failures:** `400` invalid ID; `401` invalid authentication; `404` missing or inaccessible conversation.

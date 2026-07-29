@@ -111,6 +111,10 @@ Before final cleanup, the host executable failed to link because the installed l
 
 ## Known gaps
 
+Phase 7 memory tests use fake providers only and cover structured trace retention,
+tool-call ID replay, complete-turn boundaries, title generation, ownership-safe
+missing behavior, and history configuration. Real Gemini remains opt-in.
+
 - No automated HTTP controller/database integration suite
 - No dedicated disposable PostgreSQL test database
 - No measured coverage percentage

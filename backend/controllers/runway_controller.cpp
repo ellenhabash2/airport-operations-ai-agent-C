@@ -43,13 +43,27 @@ void internalFailure(const std::exception &error, const std::function<void(const
 }
 }
 
-void RunwayController::getRunways(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void RunwayController::getRunways(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try {
         callback(success(RunwayService{}.getStatus()));
     } catch (const std::exception &e) {
         internalFailure(e, callback);
     }
+}
+
+void RunwayController::getRunwayById(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback, std::string id)
+{
+    try { callback(success(RunwayService{}.getById(id))); }
+    catch (const DomainError &e) { domainFailure(e, callback); }
+    catch (const std::exception &e) { internalFailure(e, callback); }
+}
+
+void RunwayController::getRunwayByCode(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback, std::string code)
+{
+    try { callback(success(RunwayService{}.getByCode(code))); }
+    catch (const DomainError &e) { domainFailure(e, callback); }
+    catch (const std::exception &e) { internalFailure(e, callback); }
 }
 
 void RunwayController::updateStatus(const HttpRequestPtr &request, std::function<void(const HttpResponsePtr &)> &&callback, std::string id)

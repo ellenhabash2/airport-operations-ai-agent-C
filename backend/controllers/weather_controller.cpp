@@ -5,7 +5,7 @@
 #include "services/domain_error.h"
 #include "services/weather_service.h"
 
-void WeatherController::getWeather(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void WeatherController::getWeather(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {

@@ -117,6 +117,8 @@ Json::Value RunwayService::applyStatusUpdate(const Json::Value &runway, const st
     Json::Value affected = dependencies_.affectedFlights(runwayId);
     Json::Value affectedList(Json::arrayValue);
     for (const auto &flight : affected) {
+        const auto flightStatus = flight.get("status", "").asString();
+        if (flightStatus == "LANDED" || flightStatus == "CANCELLED") continue;
         Json::Value item;
         item["flight_number"] = flight["flight_number"];
         item["status"] = flight["status"];

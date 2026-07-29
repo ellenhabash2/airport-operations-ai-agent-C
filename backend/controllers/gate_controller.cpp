@@ -39,7 +39,7 @@ int positiveId(const std::string &raw)
 }
 }
 
-void GateController::getGates(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void GateController::getGates(const HttpRequestPtr &, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     try
     {

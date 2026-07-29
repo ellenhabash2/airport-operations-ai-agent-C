@@ -39,6 +39,10 @@ Json::Value ConversationService::loadOwnedMessages(const std::string &conversati
     for (const auto &row : rows) {
         const auto role = row.get("role", "").asString();
         if (role != "user" && role != "assistant") continue;
+        // Assistant tool-call rows are provider replay internals, not visible
+        // chat messages. Their safe summary belongs on the final assistant row.
+        if (role == "assistant" && row["tool_calls"].isArray() && !row["tool_calls"].empty())
+            continue;
         Json::Value message;
         for (const char *field : {"id", "conversation_id", "role", "content", "created_at", "turn_status"})
             if (row.isMember(field)) message[field] = row[field];

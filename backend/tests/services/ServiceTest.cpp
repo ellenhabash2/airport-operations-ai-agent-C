@@ -231,13 +231,11 @@ TEST(ConversationServiceTest, ExposesOnlySafeStructuredAssistantHistory) {
     deps.owns = [](const auto &, const auto &) { return true; };
     deps.messages = [rows](const auto &, const auto &) { return rows; };
     const auto publicMessages = ConversationService(deps).loadOwnedMessages("1", "7");
-    ASSERT_EQ(publicMessages.size(), 3U);
+    ASSERT_EQ(publicMessages.size(), 2U);
     EXPECT_EQ(publicMessages[0]["role"], "user");
     EXPECT_EQ(publicMessages[1]["role"], "assistant");
-    EXPECT_TRUE(publicMessages[1]["presentation"].isNull());
-    EXPECT_TRUE(publicMessages[1]["tool_executions"].empty());
-    EXPECT_EQ(publicMessages[2]["presentation"]["type"], "runway_status");
-    EXPECT_EQ(publicMessages[2]["tool_executions"][0]["tool"], "get_runway_status");
+    EXPECT_EQ(publicMessages[1]["presentation"]["type"], "runway_status");
+    EXPECT_EQ(publicMessages[1]["tool_executions"][0]["tool"], "get_runway_status");
     const auto rendered = publicMessages.toStyledString();
     EXPECT_EQ(rendered.find("provider_payload"), std::string::npos);
     EXPECT_EQ(rendered.find("tool_results"), std::string::npos);

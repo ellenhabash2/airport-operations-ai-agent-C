@@ -99,8 +99,8 @@ Json::Value IncidentRepository::searchIncidents(const std::string &query)
     auto conn = DatabaseManager::getInstance().getConnection();
     pqxx::work txn(*conn);
     auto rows = txn.exec_params(std::string(kIncidentColumns) +
-        "WHERE title ILIKE $1 ESCAPE '\\\\' OR description ILIKE $1 ESCAPE '\\\\' "
-        "OR COALESCE(location, '') ILIKE $1 ESCAPE '\\\\' "
+        "WHERE title ILIKE $1 ESCAPE '\\' OR description ILIKE $1 ESCAPE '\\' "
+        "OR COALESCE(location, '') ILIKE $1 ESCAPE '\\' "
         "ORDER BY created_at DESC, id DESC", "%" + escaped + "%");
     for (const auto &row : rows) incidents.append(incidentRowToJson(row));
     txn.commit();

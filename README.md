@@ -86,9 +86,14 @@ The frontend never contacts Gemini directly. Provider credentials, tool executio
 | `get_terminal_status` | Read | Summarize terminal gate and flight status | `terminal_id` |
 | `get_flights_by_terminal` | Read | List flights assigned to terminal gates | `terminal_id` |
 | `get_runway_status` | Read | List runways and statuses | None |
+| `get_runway_by_id` | Read | Look up a runway by internal ID | `runway_id` |
+| `get_runway_by_code` | Read | Look up a runway by public code | `runway_code` |
+| `update_runway_status` | Write | Update runway status and report affected flights | `status` and runway identifier |
 | `get_latest_weather` | Read | Get the newest weather report | None |
 | `resolve_incident` | Write | Resolve an incident | `id` |
 | `create_incident` | Write | Create an incident | `title`, `description`, `severity`; optional `location` |
+
+The canonical registry contains 24 operational tools. The deprecated `get_flight_details` alias is retained for compatibility. Registry metadata is the source for both Gemini declarations and execution; all writes require verified user context and all handlers reuse REST domain services.
 
 ### Multi-tool scenario
 

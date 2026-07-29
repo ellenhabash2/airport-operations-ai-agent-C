@@ -29,7 +29,8 @@ The exact final CTest count is recorded by the final verification run rather tha
 | --- | ---: | --- |
 | `PasswordHasherTest` | 4 | Non-plaintext bcrypt output, correct/incorrect passwords, unique salts |
 | `JwtServiceTest` | 6 | Generation, user ID, tampering, wrong signature, expiration, required secret |
-| `ToolRegistryTest` | current suite | Unique tools, flight/gate/terminal schemas, unknown dispatch, fake execution |
+| `ToolRegistryTest` | current suite | Exact 24-tool canonical inventory plus legacy alias, deterministic metadata/schema generation, duplicate rejection, safe validation, access classification, and write authentication |
+| `AgentLoopTest` | current suite | Operations overview, terminal lookup, gate reassignment, incident investigation, sequential calls, call IDs, provider failures, malformed arguments, and bounded iteration |
 | `AgentLoopTest` | current suite | No-tool response, multi-tool chains including flight/terminal reasoning, invalid arguments, provider failure, bounds, and tool-call ID/order preservation |
 | `LLMConfigTest` | 3 | Gemini defaults, environment overrides, HTTPS requirement |
 | `LLMClientTest` and parameterized status cases | 12 | Request serialization, text/tool parsing, auth header, retries, transport failures, malformed responses, offline configuration, 400/401/403/404 mapping |

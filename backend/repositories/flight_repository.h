@@ -22,6 +22,7 @@ public:
     static Json::Value getFlightByNumber(const std::string &flightNumber);
     static Json::Value searchFlights(const FlightSearchCriteria &criteria);
     static bool updateStatus(int flightId, const std::string &status);
+    static Json::Value getFlightsByRunwayId(int runwayId);
 
     // Locks the flight, target gate, and previous gate and applies every state
     // change in one PostgreSQL transaction. The typed `outcome` lets the

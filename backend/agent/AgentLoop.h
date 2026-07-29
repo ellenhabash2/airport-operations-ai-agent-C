@@ -14,6 +14,7 @@ public:
         bool providerFailed{false};
         bool maxIterationsReached{false};
         Json::Value providerError;
+        Json::Value generatedMessages{Json::arrayValue};
     };
 
     static Result run(Json::Value messages, const Json::Value &tools,

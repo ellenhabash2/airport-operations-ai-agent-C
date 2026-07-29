@@ -233,3 +233,17 @@ TEST(AgentLoopTest, PreservesSeveralCallsFromOneAssistantMessage) {
     EXPECT_EQ(nextMessages[1]["tool_call_id"].asString(), "call-1");
     EXPECT_EQ(nextMessages[2]["tool_call_id"].asString(), "call-2");
 }
+
+TEST(AgentLoopTest, ReturnsReplayableAssistantCallsResultsAndFinalMessage) {
+    Json::Value args(Json::objectValue);
+    auto call = toolCall("find_delayed_flights", args);
+    call["choices"][0]["message"]["tool_calls"][0]["id"] = "call-delayed-1";
+    FakeLLMClient fake{{call, answer("Delayed flights summarized")}};
+    const auto result = AgentLoop::run(Json::Value(Json::arrayValue), Json::Value(Json::arrayValue),
+        [&](const auto &m, const auto &t) { return fake.chat(m, t); },
+        [](const std::string &, const Json::Value &) { Json::Value flights(Json::arrayValue), flight; flight["terminal"] = "A"; flights.append(flight); return flights; });
+    ASSERT_EQ(result.generatedMessages.size(), 3U);
+    EXPECT_EQ(result.generatedMessages[0]["tool_calls"][0]["id"], "call-delayed-1");
+    EXPECT_EQ(result.generatedMessages[1]["tool_call_id"], "call-delayed-1");
+    EXPECT_EQ(result.generatedMessages[2]["content"], "Delayed flights summarized");
+}

@@ -29,3 +29,6 @@ q2.json
 .vs/
 *.vsidx
 build-tests/
+
+# Read-only Python reference frontend used for Phase 9 comparison.
+/frontend-python/

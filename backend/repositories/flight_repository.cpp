@@ -117,6 +117,12 @@ Json::Value FlightRepository::searchFlights(const FlightSearchCriteria &criteria
     return queryFlights(sql, params);
 }
 
+Json::Value FlightRepository::getFlightsByRunwayId(int runwayId)
+{
+    pqxx::params params; params.append(runwayId);
+    return queryFlights("WHERE f.runway_id = $1 ORDER BY f.departure_time, f.flight_number", params);
+}
+
 bool FlightRepository::updateStatus(int flightId, const std::string &status)
 {
     auto conn = DatabaseManager::getInstance().getConnection();

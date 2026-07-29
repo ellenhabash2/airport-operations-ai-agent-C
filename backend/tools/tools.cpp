@@ -158,6 +158,24 @@ Json::Value Tools::get_runway_status()
     return safely([] { return RunwayService{}.getStatus(); });
 }
 
+Json::Value Tools::get_runway_by_id(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("runway_id") || !arguments["runway_id"].isInt())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "runway_id must be an integer");
+        return RunwayService{}.getById(std::to_string(arguments["runway_id"].asInt()));
+    });
+}
+
+Json::Value Tools::get_runway_by_code(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("runway_code") || !arguments["runway_code"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "runway_code must be a string");
+        return RunwayService{}.getByCode(arguments["runway_code"].asString());
+    });
+}
+
 // Returns the latest weather report.
 Json::Value Tools::get_latest_weather()
 {
@@ -210,5 +228,20 @@ Json::Value Tools::assign_flight_to_gate(const Json::Value &arguments)
             gateId = std::to_string(GateService{}.getByNumber(arguments["gate_number"].asString())["id"].asInt());
         else throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "gate_id or gate_number is required");
         return FlightService{}.assignFlightToGate(flightId, gateId);
+    });
+}
+
+// Opens or closes a runway and reports the flights it affects.
+Json::Value Tools::update_runway_status(const Json::Value &arguments)
+{
+    return safely([&] {
+        if (!arguments.isMember("status") || !arguments["status"].isString())
+            throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "status is required");
+        const std::string status = arguments["status"].asString();
+        if (arguments.isMember("runway_code") && arguments["runway_code"].isString())
+            return RunwayService{}.updateStatusByCode(arguments["runway_code"].asString(), status);
+        if (arguments.isMember("runway_id") && arguments["runway_id"].isInt())
+            return RunwayService{}.updateStatus(std::to_string(arguments["runway_id"].asInt()), status);
+        throw DomainError(DomainErrorKind::Validation, "invalid_tool_arguments", "runway_code or runway_id is required");
     });
 }

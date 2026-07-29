@@ -118,6 +118,35 @@ TEST(RunwayServiceTest, PreservesEmptyResultsAndFailures) {
     EXPECT_TRUE(RunwayService([] { return Json::Value(Json::arrayValue); }).getStatus().empty());
     EXPECT_THROW(RunwayService([]() -> Json::Value { throw std::runtime_error("offline"); }).getStatus(), std::runtime_error);
 }
+TEST(RunwayServiceTest, ReturnsRunwayByIdAndCodeAndRejectsMissing) {
+    RunwayService::Dependencies deps;
+    deps.byId = [](int id) { Json::Value r; r["found"] = id == 1; r["runway"]["id"] = 1; r["runway"]["runway_code"] = "08L"; r["runway"]["status"] = "OPERATIONAL"; return r; };
+    deps.byCode = [](const std::string &code) { Json::Value r; r["found"] = code == "08L"; r["runway"]["id"] = 1; r["runway"]["runway_code"] = "08L"; r["runway"]["status"] = "OPERATIONAL"; return r; };
+    RunwayService service(deps);
+    EXPECT_EQ(service.getById("1")["runway_code"], "08L");
+    EXPECT_EQ(service.getByCode(" 08L ")["runway_code"], "08L");
+    expectDomain(DomainErrorKind::Validation, [&] { service.getById("abc"); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getById("2"); });
+    expectDomain(DomainErrorKind::NotFound, [&] { service.getByCode("99X"); });
+}
+TEST(RunwayServiceTest, UpdatesStatusNormalizesAndReportsAffectedFlights) {
+    RunwayService::Dependencies deps;
+    deps.byId = [](int id) { Json::Value r; r["found"] = id == 1; r["runway"]["id"] = 1; r["runway"]["runway_code"] = "08L"; r["runway"]["status"] = "OPERATIONAL"; return r; };
+    deps.byCode = [](const std::string &code) { Json::Value r; r["found"] = code == "08L"; r["runway"]["id"] = 1; r["runway"]["runway_code"] = "08L"; r["runway"]["status"] = "OPERATIONAL"; return r; };
+    std::string captured;
+    deps.update = [&captured](int id, const std::string &status) { captured = status; return id == 1; };
+    deps.affectedFlights = [](int) { Json::Value list(Json::arrayValue), f; f["flight_number"] = "SB2101"; f["status"] = "SCHEDULED"; f["origin"] = "TLV"; f["destination"] = "LHR"; list.append(f); return list; };
+    RunwayService service(deps);
+    auto result = service.updateStatus("1", "closed");
+    EXPECT_TRUE(result["updated"].asBool());
+    EXPECT_EQ(result["previous_status"], "OPERATIONAL");
+    EXPECT_EQ(result["runway"]["status"], "CLOSED");
+    EXPECT_EQ(result["affected_flight_count"].asInt(), 1);
+    EXPECT_EQ(result["affected_flights"][0]["flight_number"], "SB2101");
+    EXPECT_EQ(captured, "CLOSED");
+    EXPECT_EQ(service.updateStatusByCode("08L", "Available")["runway"]["status"], "OPERATIONAL");
+    expectDomain(DomainErrorKind::Validation, [&] { service.updateStatus("1", "flying"); });
+}
 TEST(IncidentServiceTest, ListsAndCreatesValidIncident) {
     IncidentService::Dependencies deps;
     deps.all = [] { return arrayWith("id", "1"); }; deps.active = [] { return arrayWith("status", "OPEN"); };

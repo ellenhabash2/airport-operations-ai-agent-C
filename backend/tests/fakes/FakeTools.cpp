@@ -25,6 +25,8 @@ Json::Value Tools::get_available_gates() { return fakeResult("get_available_gate
 Json::Value Tools::get_terminal_status(const Json::Value &) { return fakeResult("get_terminal_status"); }
 Json::Value Tools::get_flights_by_terminal(const Json::Value &) { return fakeResult("get_flights_by_terminal"); }
 Json::Value Tools::get_runway_status() { return fakeResult("get_runway_status"); }
+Json::Value Tools::get_runway_by_id(const Json::Value &) { return fakeResult("get_runway_by_id"); }
+Json::Value Tools::get_runway_by_code(const Json::Value &) { return fakeResult("get_runway_by_code"); }
 Json::Value Tools::get_latest_weather() { return fakeResult("get_latest_weather"); }
 Json::Value Tools::resolve_incident(const std::string &) { return fakeResult("resolve_incident"); }
 Json::Value Tools::create_incident(const std::string &, const std::string &,
@@ -33,3 +35,4 @@ Json::Value Tools::create_incident(const std::string &, const std::string &,
 }
 Json::Value Tools::update_flight_status(const Json::Value &) { return fakeResult("update_flight_status"); }
 Json::Value Tools::assign_flight_to_gate(const Json::Value &) { return fakeResult("assign_flight_to_gate"); }
+Json::Value Tools::update_runway_status(const Json::Value &) { return fakeResult("update_runway_status"); }

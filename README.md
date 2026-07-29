@@ -69,6 +69,9 @@ The frontend never contacts Gemini directly. Provider credentials, tool executio
 | --- | --- | --- | --- |
 | `find_delayed_flights` | Read | List delayed flights | None |
 | `get_active_incidents` | Read | List open or investigating incidents | None |
+| `get_all_incidents` | Read | List active and resolved incidents | None |
+| `get_incidents_by_severity` | Read | Filter incidents by severity | `severity` |
+| `search_incidents` | Read | Search incident title, description, and location | `query` |
 | `get_all_flights` | Read | List all flights | None |
 | `get_flight_details` | Read | Get one flight | `id` |
 | `get_flight_by_id` | Read | Get one flight by internal ID | `flight_id` |

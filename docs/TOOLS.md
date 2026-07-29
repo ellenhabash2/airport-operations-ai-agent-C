@@ -27,3 +27,18 @@ All tools execute through the authenticated agent endpoint and call the same ser
 - `get_flights_by_terminal`: required integer `terminal_id`; returns flights assigned through terminal gates.
 
 `get_all_terminals` is not registered because flight results already include `terminal_id`, directly supporting the required reasoning chain without a redundant discovery call.
+
+# Incident tools
+
+All incident tools call `IncidentService`; none access SQL directly. Severities use
+the canonical values `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`.
+
+- `get_all_incidents`: no arguments; returns active and resolved incidents.
+- `get_active_incidents`: no arguments; returns `OPEN` and `INVESTIGATING` incidents.
+- `get_incidents_by_severity`: required string `severity`; input is case-insensitive.
+- `search_incidents`: required string `query`; searches title, description, and location using literal, case-insensitive partial matching.
+- `create_incident`: required `title`, `description`, and `severity`; optional `location`.
+- `resolve_incident`: required incident `id`; repeated or concurrent resolution returns a controlled conflict.
+
+Write tools remain available only through the authenticated agent endpoint. The current
+incident schema has no creator or resolver identity column, so identity is not persisted.

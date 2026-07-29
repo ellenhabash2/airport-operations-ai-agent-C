@@ -45,6 +45,13 @@ Json::Value flightStatusProperty()
     for (const char *status : {"scheduled", "boarding", "in_flight", "delayed", "cancelled", "landed"}) value["enum"].append(status);
     return value;
 }
+
+Json::Value runwayStatusProperty()
+{
+    auto value = property("string", "Runway status");
+    for (const char *status : {"operational", "maintenance", "closed"}) value["enum"].append(status);
+    return value;
+}
 }
 
 Json::Value ToolRegistry::getToolDefinitions()
@@ -99,6 +106,16 @@ Json::Value ToolRegistry::getToolDefinitions()
         tool["function"]["parameters"]["required"].append("terminal_id"); tools.append(tool);
     }
     tools.append(makeTool("get_runway_status", "Returns all runways and their status."));
+    {
+        auto tool = makeTool("get_runway_by_id", "Returns a runway by its internal numeric identifier.");
+        tool["function"]["parameters"]["properties"]["runway_id"] = property("integer", "Internal numeric runway identifier");
+        tool["function"]["parameters"]["required"].append("runway_id"); tools.append(tool);
+    }
+    {
+        auto tool = makeTool("get_runway_by_code", "Returns a runway by its public runway code.");
+        tool["function"]["parameters"]["properties"]["runway_code"] = property("string", "Public runway code, for example 08L");
+        tool["function"]["parameters"]["required"].append("runway_code"); tools.append(tool);
+    }
     tools.append(makeTool("get_latest_weather", "Returns the latest weather report for the airport."));
 
     // Action tools
@@ -119,6 +136,14 @@ Json::Value ToolRegistry::getToolDefinitions()
         props["gate_id"] = property("integer", "Internal gate identifier");
         props["gate_number"] = property("string", "Public gate number, for example A03");
         tools.append(tool);
+    }
+    {
+        auto tool = makeTool("update_runway_status", "Opens or closes a runway and reports the flights it affects. Provide runway_code (preferred) or runway_id, plus the new status.");
+        auto &params = tool["function"]["parameters"];
+        params["properties"]["runway_code"] = property("string", "Public runway code, for example 08L");
+        params["properties"]["runway_id"] = property("integer", "Internal numeric runway identifier");
+        params["properties"]["status"] = runwayStatusProperty();
+        params["required"].append("status"); tools.append(tool);
     }
 
     // create_incident takes several parameters
@@ -163,10 +188,13 @@ Json::Value ToolRegistry::executeTool(const std::string &name, const Json::Value
     if (name == "get_terminal_status")    return Tools::get_terminal_status(args);
     if (name == "get_flights_by_terminal") return Tools::get_flights_by_terminal(args);
     if (name == "get_runway_status")      return Tools::get_runway_status();
+    if (name == "get_runway_by_id")       return Tools::get_runway_by_id(args);
+    if (name == "get_runway_by_code")     return Tools::get_runway_by_code(args);
     if (name == "get_latest_weather")     return Tools::get_latest_weather();
     if (name == "resolve_incident")       return Tools::resolve_incident(args.get("id", "").asString());
     if (name == "update_flight_status")   return Tools::update_flight_status(args);
     if (name == "assign_flight_to_gate")  return Tools::assign_flight_to_gate(args);
+    if (name == "update_runway_status")   return Tools::update_runway_status(args);
     if (name == "create_incident")
         return Tools::create_incident(
             args.get("title", "").asString(),

@@ -23,6 +23,8 @@ public:
     static Json::Value get_terminal_status(const Json::Value &arguments);
     static Json::Value get_flights_by_terminal(const Json::Value &arguments);
     static Json::Value get_runway_status();
+    static Json::Value get_runway_by_id(const Json::Value &arguments);
+    static Json::Value get_runway_by_code(const Json::Value &arguments);
     static Json::Value get_latest_weather();
 
     // ---- Action tools ----
@@ -31,4 +33,5 @@ public:
                                        const std::string &severity, const std::string &location);
     static Json::Value update_flight_status(const Json::Value &arguments);
     static Json::Value assign_flight_to_gate(const Json::Value &arguments);
+    static Json::Value update_runway_status(const Json::Value &arguments);
 };

@@ -18,12 +18,16 @@ template<class F> void expectDomain(DomainErrorKind kind, F operation) {
     try { operation(); FAIL() << "expected DomainError"; } catch (const DomainError &error) { EXPECT_EQ(error.kind(), kind); }
 }
 ConversationService fakeConversations(Json::Value history, bool owns, std::vector<std::string> *roles = nullptr) {
-    return ConversationService({
-        [](const std::string &) { Json::Value v; v["id"] = "9"; return v; },
-        [roles](const std::string &, const std::string &role, const std::string &) { if (roles) roles->push_back(role); Json::Value v; v["id"] = "1"; return v; },
-        [owns](const std::string &, const std::string &) { return owns; },
-        [](const std::string &) { return Json::Value(Json::arrayValue); },
-        [history](const std::string &, const std::string &) { return history; }});
+    ConversationService::Dependencies dependencies;
+    dependencies.create = [](const std::string &) { Json::Value v; v["id"] = "9"; return v; };
+    dependencies.save = [roles](const std::string &, const std::string &role, const std::string &) {
+        if (roles) roles->push_back(role);
+        Json::Value v; v["id"] = "1"; return v;
+    };
+    dependencies.owns = [owns](const std::string &, const std::string &) { return owns; };
+    dependencies.list = [](const std::string &) { return Json::Value(Json::arrayValue); };
+    dependencies.messages = [history](const std::string &, const std::string &) { return history; };
+    return ConversationService(dependencies);
 }
 }
 
@@ -238,7 +242,8 @@ TEST(ConversationServiceTest, ReplaysCompleteBoundedStructuredTurnsAndLegacyRows
     Json::Value rows(Json::arrayValue);
     auto add = [&](const char *role, const char *content, const char *turn, const Json::Value &payload = Json::Value()) {
         Json::Value row; row["role"] = role; row["content"] = content;
-        if (*turn) row["turn_id"] = turn; if (!payload.isNull()) row["provider_payload"] = payload;
+        if (*turn) row["turn_id"] = turn;
+        if (!payload.isNull()) row["provider_payload"] = payload;
         rows.append(row);
     };
     add("user", "old", ""); add("assistant", "old answer", "");
@@ -253,10 +258,11 @@ TEST(ConversationServiceTest, ReplaysCompleteBoundedStructuredTurnsAndLegacyRows
     add("assistant", final["content"].asCString(), "turn-2", final);
     rows[2]["turn_status"] = "in_progress"; rows[3]["turn_status"] = "in_progress";
     rows[4]["turn_status"] = "in_progress"; rows[5]["turn_status"] = "completed";
-    auto service = ConversationService({
-        [](const std::string &) { return Json::Value(); }, {},
-        [](const std::string &, const std::string &) { return true; }, {},
-        [rows](const std::string &, const std::string &) { return rows; }});
+    ConversationService::Dependencies replayDependencies;
+    replayDependencies.create = [](const std::string &) { return Json::Value(); };
+    replayDependencies.owns = [](const std::string &, const std::string &) { return true; };
+    replayDependencies.messages = [rows](const std::string &, const std::string &) { return rows; };
+    auto service = ConversationService(replayDependencies);
     const auto replay = service.loadReplayHistory("1", "7", 1);
     ASSERT_EQ(replay.size(), 4U); EXPECT_EQ(replay[1]["tool_calls"][0]["id"], "call-delayed-1");
     EXPECT_EQ(replay[2]["tool_call_id"], "call-delayed-1");
@@ -292,8 +298,11 @@ TEST(AgentServiceTest, ReplaysPriorStructuredToolResultForFollowUp) {
         const Json::Value &calls, const Json::Value &results, const Json::Value &, const Json::Value &metadata) {
         Json::Value row; row["role"] = role; row["content"] = content; row["turn_id"] = turn;
         row["turn_status"] = status; row["provider_payload"] = payload;
-        if (!calls.isNull()) row["tool_calls"] = calls; if (!results.isNull()) row["tool_results"] = results;
-        if (!metadata.isNull()) row["metadata"] = metadata; stored->append(row); Json::Value out; out["id"] = "1"; return out;
+        if (!calls.isNull()) row["tool_calls"] = calls;
+        if (!results.isNull()) row["tool_results"] = results;
+        if (!metadata.isNull()) row["metadata"] = metadata;
+        stored->append(row);
+        Json::Value out; out["id"] = "1"; return out;
     };
     auto calls = std::make_shared<int>(0);
     AgentService service(ConversationService(deps), [calls](Json::Value messages, const ToolExecutionContext &) {

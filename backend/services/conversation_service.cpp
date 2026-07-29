@@ -78,7 +78,8 @@ Json::Value ConversationService::loadReplayHistory(const std::string &id, const 
         }
         if (legacy || complete) completeGroups.push_back(group);
     }
-    if (maxTurns < 1) maxTurns = 1; if (maxTurns > 100) maxTurns = 100;
+    if (maxTurns < 1) maxTurns = 1;
+    if (maxTurns > 100) maxTurns = 100;
     const auto first = completeGroups.size() > maxTurns ? completeGroups.size() - maxTurns : 0;
     Json::Value replay(Json::arrayValue);
     for (std::size_t index = first; index < completeGroups.size(); ++index) {

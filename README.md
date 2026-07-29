@@ -24,7 +24,7 @@ The repository uses realistic simulated airport data. It is suitable for coursew
 | Area | Technology |
 | --- | --- |
 | Backend | C++20, Drogon, JsonCpp |
-| Frontend | React 18, JavaScript, React Router, Axios, Vite |
+| Frontend | React 19, strict TypeScript, React Router, Tailwind, Vite |
 | Database | PostgreSQL 16, libpqxx |
 | AI provider | Google Gemini REST API, OpenAI-compatible format |
 | Authentication | bcrypt via `crypt`, HS256 JWT via jwt-cpp |
@@ -157,7 +157,8 @@ backend/
 frontend/
   src/components/ Reusable UI and chat components
   src/pages/      Login, registration, overview, and chat pages
-  src/services/   Axios API and authentication clients
+  src/api/        Typed fetch client and Drogon compatibility boundary
+  src/types/      C++ API and Phase 8 presentation contracts
 sql/              Schema and simulated demonstration seed data
 docs/             API, architecture, database, testing, deployment, AI docs
 scripts/          Opt-in live Gemini smoke test

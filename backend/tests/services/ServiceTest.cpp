@@ -214,6 +214,33 @@ TEST(ConversationServiceTest, RejectsNonOwner) {
     auto service = fakeConversations(Json::Value(Json::arrayValue), false);
     expectDomain(DomainErrorKind::NotFound, [&] { service.loadOwnedMessages("9", "8"); });
 }
+TEST(ConversationServiceTest, ExposesOnlySafeStructuredAssistantHistory) {
+    Json::Value rows(Json::arrayValue), user, call, tool, assistant;
+    user["id"] = "1"; user["role"] = "user"; user["content"] = "status";
+    call["role"] = "assistant"; call["content"] = ""; call["provider_payload"]["secret"] = "provider";
+    call["tool_calls"].append(Json::Value(Json::objectValue));
+    tool["role"] = "tool"; tool["content"] = "raw result"; tool["tool_results"]["sql"] = "SELECT secret";
+    assistant["id"] = "4"; assistant["role"] = "assistant"; assistant["content"] = "All clear";
+    assistant["presentation"]["type"] = "runway_status";
+    assistant["presentation"]["data"]["runways"] = Json::Value(Json::arrayValue);
+    assistant["presentation"]["data"]["affected_flights"] = Json::Value(Json::arrayValue);
+    assistant["metadata"]["tools_used"].append("get_runway_status");
+    assistant["metadata"]["tool_executions"][0]["tool"] = "get_runway_status";
+    rows.append(user); rows.append(call); rows.append(tool); rows.append(assistant);
+    ConversationService::Dependencies deps;
+    deps.owns = [](const auto &, const auto &) { return true; };
+    deps.messages = [rows](const auto &, const auto &) { return rows; };
+    const auto publicMessages = ConversationService(deps).loadOwnedMessages("1", "7");
+    ASSERT_EQ(publicMessages.size(), 2U);
+    EXPECT_EQ(publicMessages[0]["role"], "user");
+    EXPECT_EQ(publicMessages[1]["role"], "assistant");
+    EXPECT_EQ(publicMessages[1]["presentation"]["type"], "runway_status");
+    EXPECT_EQ(publicMessages[1]["tool_executions"][0]["tool"], "get_runway_status");
+    const auto rendered = publicMessages.toStyledString();
+    EXPECT_EQ(rendered.find("provider_payload"), std::string::npos);
+    EXPECT_EQ(rendered.find("tool_results"), std::string::npos);
+    EXPECT_EQ(rendered.find("SELECT secret"), std::string::npos);
+}
 TEST(AgentServiceTest, HandlesNewAndOwnedConversationAndPersistsVisibleTurns) {
     std::vector<std::string> roles; Json::Value history = arrayWith("role", "assistant"); history[0]["content"] = "Earlier";
     auto runner = [](Json::Value messages, const ToolExecutionContext &context) { AgentLoop::Result result; result.answer = "All clear"; result.toolsUsed.append("get_runway_status"); EXPECT_GE(messages.size(), 2U); EXPECT_TRUE(context.authenticated); EXPECT_EQ(context.userId, "7"); return result; };
@@ -229,6 +256,37 @@ TEST(AgentServiceTest, RejectsNonOwnerAndDoesNotSaveFalseProviderSuccess) {
     AgentService failed(fakeConversations(Json::Value(Json::arrayValue), true, &roles), [](Json::Value, const ToolExecutionContext &) { AgentLoop::Result r; r.providerFailed = true; return r; });
     expectDomain(DomainErrorKind::ProviderUnavailable, [&] { failed.query("7", "x", std::nullopt); });
     ASSERT_FALSE(roles.empty()); EXPECT_EQ(roles.back(), "user");
+}
+TEST(AgentServiceTest, ReturnsAndPersistsPresentationAndSafeExecutionMetadata) {
+    auto savedPresentation = std::make_shared<Json::Value>();
+    auto savedMetadata = std::make_shared<Json::Value>();
+    ConversationService::Dependencies deps;
+    deps.createNamed = [](const auto &, const auto &) { Json::Value value; value["id"] = "9"; return value; };
+    deps.messages = [](const auto &, const auto &) { return Json::Value(Json::arrayValue); };
+    deps.owns = [](const auto &, const auto &) { return true; };
+    deps.saveStructured = [savedPresentation, savedMetadata](const auto &, const auto &role,
+        const auto &, const auto &, const auto &status, const auto &, const auto &, const auto &,
+        const auto &presentation, const auto &metadata) {
+        if (role == "assistant" && status == "completed") {
+            *savedPresentation = presentation; *savedMetadata = metadata;
+        }
+        Json::Value value; value["id"] = "1"; return value;
+    };
+    AgentService service(ConversationService(deps), [](Json::Value, const ToolExecutionContext &) {
+        AgentLoop::Result result; result.answer = "One delayed flight";
+        result.toolsUsed.append("find_delayed_flights");
+        ToolExecutionRecord record; record.tool = "find_delayed_flights";
+        record.arguments["authorization"] = "synthetic"; record.result.append(Json::Value(Json::objectValue));
+        record.result[0]["id"] = 42; result.toolExecutions.push_back(record);
+        Json::Value final; final["role"] = "assistant"; final["content"] = result.answer;
+        result.generatedMessages.append(final); return result;
+    });
+    const auto result = service.query("7", "Which flights are delayed?", std::nullopt);
+    EXPECT_EQ(result.presentation["type"], "flight_list");
+    EXPECT_EQ(result.toolExecutions[0]["arguments"]["authorization"], "[redacted]");
+    EXPECT_EQ((*savedPresentation)["type"], "flight_list");
+    EXPECT_EQ((*savedMetadata)["tool_executions"][0]["tool"], "find_delayed_flights");
+    EXPECT_EQ(savedMetadata->toStyledString().find("synthetic"), std::string::npos);
 }
 
 TEST(ConversationServiceTest, GeneratesDeterministicNormalizedTitles) {

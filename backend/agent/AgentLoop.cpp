@@ -1,11 +1,26 @@
 #include "AgentLoop.h"
+#include <chrono>
 #include <memory>
+#include <set>
+
+namespace {
+bool toolSucceeded(const Json::Value &result)
+{
+    if (!result.isObject()) return true;
+    if (result.isMember("error") || result.get("success", true).asBool() == false) return false;
+    if (result.isMember("found") && !result["found"].asBool()) return false;
+    if (result.get("already_resolved", false).asBool()) return false;
+    return true;
+}
+}
 
 AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
                                 const Provider &provider, const ToolExecutor &execute,
                                 int maxIterations)
 {
     Result result;
+    std::size_t sequence = 0;
+    std::set<std::string> usedNames;
     for (int step = 0; step < maxIterations; ++step) {
         const Json::Value response = provider(messages, tools);
         if (response.isMember("error")) {
@@ -28,7 +43,7 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
         result.generatedMessages.append(message);
         for (const auto &call : message["tool_calls"]) {
             const std::string name = call["function"]["name"].asString();
-            result.toolsUsed.append(name);
+            if (usedNames.insert(name).second) result.toolsUsed.append(name);
             Json::Value args(Json::objectValue), toolResult;
             const auto &raw = call["function"]["arguments"];
             bool valid = raw.isObject();
@@ -40,11 +55,27 @@ AgentLoop::Result AgentLoop::run(Json::Value messages, const Json::Value &tools,
                 const auto value = raw.asString();
                 valid = reader->parse(value.data(), value.data() + value.size(), &args, &error) && args.isObject();
             }
-            if (!valid) toolResult["error"] = "Invalid tool arguments";
+
+            // Measure only the actual tool execution with a monotonic clock.
+            // Duration covers argument validation + registry execution (documented).
+            const auto started = std::chrono::steady_clock::now();
+            if (!valid) { toolResult["error"] = "Invalid tool arguments"; toolResult["code"] = "invalid_arguments"; }
             else {
                 try { toolResult = execute(name, args); }
-                catch (const std::exception &) { toolResult["error"] = "Tool execution failed"; }
+                catch (const std::exception &) { toolResult["error"] = "Tool execution failed"; toolResult["code"] = "internal_error"; }
             }
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started).count();
+
+            ToolExecutionRecord record;
+            record.callId = call.get("id", "").asString();
+            record.tool = name;
+            record.arguments = args;
+            record.result = toolResult;
+            record.success = toolSucceeded(toolResult);
+            record.durationMs = elapsed < 0 ? 0 : elapsed;
+            record.sequence = sequence++;
+            result.toolExecutions.push_back(std::move(record));
 
             Json::StreamWriterBuilder writer;
             writer["indentation"] = "";

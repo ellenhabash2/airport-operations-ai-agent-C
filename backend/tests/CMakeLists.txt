@@ -26,6 +26,8 @@ add_executable(aeromind_tests
     tools/ToolRegistryTest.cpp
     fakes/FakeTools.cpp
     agent/AgentLoopTest.cpp
+    agent/PresentationServiceTest.cpp
+    agent/AgentSafetyTest.cpp
     agent/LLMConfigTest.cpp
     agent/LLMClientTest.cpp
     services/ServiceTest.cpp
@@ -40,6 +42,8 @@ target_sources(aeromind_tests PRIVATE
     ../security/JwtService.cpp
     ../agent/ToolRegistry.cpp
     ../agent/AgentLoop.cpp
+    ../agent/PresentationService.cpp
+    ../agent/AgentSafety.cpp
     ../agent/LLMConfig.cpp
     ../agent/LLMClient.cpp
     ../services/flight_service.cpp

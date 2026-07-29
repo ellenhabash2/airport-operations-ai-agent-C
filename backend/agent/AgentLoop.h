@@ -1,6 +1,8 @@
 #pragma once
+#include "ToolExecutionRecord.h"
 #include <functional>
 #include <json/json.h>
+#include <vector>
 
 class AgentLoop
 {
@@ -15,6 +17,10 @@ public:
         bool maxIterationsReached{false};
         Json::Value providerError;
         Json::Value generatedMessages{Json::arrayValue};
+        // Phase 8: trusted structured trace of every tool execution this turn,
+        // in execution order, with monotonic durations and raw results retained
+        // for deterministic presentation generation. Never serialized directly.
+        std::vector<ToolExecutionRecord> toolExecutions;
     };
 
     static Result run(Json::Value messages, const Json::Value &tools,

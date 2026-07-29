@@ -1,4 +1,5 @@
 #include "conversation_service.h"
+#include "agent/PresentationService.h"
 #include "domain_error.h"
 #include "repositories/conversation_repository.h"
 #include <algorithm>
@@ -33,9 +34,31 @@ void ConversationService::requireOwnership(const std::string &conversationId, co
 }
 Json::Value ConversationService::loadOwnedMessages(const std::string &conversationId, const std::string &userId) const {
     requireOwnership(conversationId, userId);
-    auto rows = dependencies_.messages(conversationId, userId);
-    for (auto &row : rows) row.removeMember("provider_payload");
-    return rows;
+    const auto rows = dependencies_.messages(conversationId, userId);
+    Json::Value messages(Json::arrayValue);
+    for (const auto &row : rows) {
+        const auto role = row.get("role", "").asString();
+        if (role != "user" && role != "assistant") continue;
+        // Assistant tool-call rows are provider replay internals, not visible
+        // chat messages. Their safe summary belongs on the final assistant row.
+        if (role == "assistant" && row["tool_calls"].isArray() && !row["tool_calls"].empty())
+            continue;
+        Json::Value message;
+        for (const char *field : {"id", "conversation_id", "role", "content", "created_at", "turn_status"})
+            if (row.isMember(field)) message[field] = row[field];
+        if (role == "assistant") {
+            const auto &storedPresentation = row["presentation"];
+            message["presentation"] = PresentationService::validate(storedPresentation)
+                ? storedPresentation : Json::Value(Json::nullValue);
+            const auto &metadata = row["metadata"];
+            message["tool_executions"] = metadata.isObject() && metadata["tool_executions"].isArray()
+                ? metadata["tool_executions"] : Json::Value(Json::arrayValue);
+            message["tools_used"] = metadata.isObject() && metadata["tools_used"].isArray()
+                ? metadata["tools_used"] : Json::Value(Json::arrayValue);
+        }
+        messages.append(message);
+    }
+    return messages;
 }
 
 void ConversationService::saveReplayMessage(const std::string &id, const std::string &role,

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { renderWithProviders } from "../test/render";
 import ChatPage from "./ChatPage";
 
@@ -49,5 +49,13 @@ describe("ChatPage Drogon integration", () => {
     await userEvent.click(screen.getByLabelText("Send message"));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("could not be completed"));
     expect(screen.queryByText("database details")).not.toBeInTheDocument();
+  });
+
+  it("shows the AI provider message for provider gateway errors", async () => {
+    postMock.mockRejectedValue(new ApiError("AI provider is currently unavailable", 502));
+    renderWithProviders(<ChatPage />, { route: "/chat" });
+    await userEvent.type(screen.getByLabelText("Message AeroMind"), "status");
+    await userEvent.click(screen.getByLabelText("Send message"));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("AI provider is currently unavailable"));
   });
 });

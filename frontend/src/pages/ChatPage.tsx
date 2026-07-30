@@ -21,6 +21,7 @@ const SUGGESTIONS = [
 function friendlyError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Your session has expired. Please sign in again.";
+    if (error.status === 502) return error.message || "The AI provider is currently unavailable.";
     if (error.status === 503) return "The AI service is temporarily unavailable.";
     if (error.status >= 500 || error.status === 0) return "The request could not be completed.";
     return error.message;

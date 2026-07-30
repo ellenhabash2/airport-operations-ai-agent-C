@@ -30,4 +30,25 @@ describe("StructuredAnswerRenderer", () => {
     expect(screen.getByText("Operations overview")).toBeVisible();
     expect(screen.getByText("Unavailable")).toBeVisible();
   });
+
+  it("renders empty flight and runway collections without crashing", () => {
+    const { rerender } = render(<StructuredAnswerRenderer presentation={{ type: "flight_list", data: { flights: [] } }} />);
+    expect(screen.getByText("0 results")).toBeVisible();
+    rerender(<StructuredAnswerRenderer presentation={{ type: "runway_status", data: { runways: [], affected_flights: [] } }} />);
+    expect(screen.getByText("Runway status")).toBeVisible();
+  });
+
+  it("renders missing gate and weather fields with safe fallbacks", () => {
+    const { rerender } = render(<StructuredAnswerRenderer presentation={{ type: "gate_assignment", data: { flight, previous_gate: null, new_gate: { id: 3, gate_number: "A03", status: "occupied" } } }} />);
+    expect(screen.getByText("Not assigned")).toBeVisible();
+    rerender(<StructuredAnswerRenderer presentation={{ type: "operations_overview", data: { delayed_flights: [], active_incidents: [], weather: null } }} />);
+    expect(screen.getByText("Unavailable")).toBeVisible();
+  });
+
+  it("returns no card for a missing or unknown presentation", () => {
+    const { container, rerender } = render(<StructuredAnswerRenderer presentation={null} />);
+    expect(container).toBeEmptyDOMElement();
+    rerender(<StructuredAnswerRenderer presentation={{ type: "unknown", data: {} } as never} />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

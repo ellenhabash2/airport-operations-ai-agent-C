@@ -1,3 +1,4 @@
+Names:Roaa Zoabi, Marwa Abd Alrzaq, Ellen Habash
 # AeroMind frontend
 
 The frontend is a React 18 and Vite application for registration, login, airport operations overview, AI chat, and persistent conversation selection.

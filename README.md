@@ -1,8 +1,14 @@
 # AeroMind
 
+## Authors
+
+- Roaa Zoabi
+- Marwa Abd Alrzaq
+- Ellen Habash
+
 ## Project overview
 
-AeroMind is a university project demonstrating how an authenticated AI agent can help airport operations staff explore flights, gates, runways, incidents, and weather through a conversational interface. The backend combines a REST API with Gemini function calling, a bounded agent loop, nine safe tools, and persistent user-owned conversation history.
+AeroMind is a university project demonstrating how an authenticated AI agent can help airport operations staff explore flights, gates, runways, incidents, and weather through a conversational interface. The backend combines a REST API with Gemini function calling, a bounded agent loop, 24 operational tools, and persistent user-owned conversation history.
 
 The repository uses realistic simulated airport data. It is suitable for coursework and demonstrations, but is not connected to live airport systems and must not be used for safety-critical decisions.
 
@@ -12,7 +18,7 @@ The repository uses realistic simulated airport data. It is suitable for coursew
 - Registration, bcrypt password hashing, and expiring JWT authentication
 - JWT-protected writes and conversation routes
 - Gemini through Google's OpenAI-compatible endpoint
-- Nine registered tools and multi-step agent execution
+- 24 operational tools and multi-step agent execution
 - Persistent conversation history with ownership enforcement
 - Flight, gate, runway, incident, and weather workflows
 - React overview and chat interface

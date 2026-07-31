@@ -14,7 +14,7 @@ LLMConfig LLMConfig::fromEnvironment()
     LLMConfig config;
     config.provider = readEnvironment("AI_PROVIDER", "gemini");
     config.apiKey = readEnvironment("GEMINI_API_KEY");
-    config.model = readEnvironment("GEMINI_MODEL", "gemini-2.5-flash");
+    config.model = readEnvironment("GEMINI_MODEL", "gemini-flash-lite-latest");
     config.baseUrl = readEnvironment(
         "GEMINI_BASE_URL",
         "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");

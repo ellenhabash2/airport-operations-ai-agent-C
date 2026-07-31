@@ -185,7 +185,7 @@ The template defines PostgreSQL credentials, backend database connection fields,
 ```dotenv
 AI_PROVIDER=gemini
 GEMINI_API_KEY=replace_with_your_google_ai_studio_key
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-flash-lite-latest
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
 JWT_SECRET=replace_with_a_long_random_secret_at_least_32_chars
 ```
@@ -273,6 +273,23 @@ Malformed input returns `400`, invalid authentication `401`, ownership failures 
 - Only ToolRegistry names can execute; invalid arguments fail safely.
 - Gemini credentials remain server-side, TLS verification is enabled, responses are bounded, and retries are limited.
 - The agent loop is bounded.
+
+## Troubleshooting: AI provider errors
+
+If the chat returns "AI provider is currently unavailable", check the backend logs:
+
+```bash
+docker compose logs backend --tail 15
+```
+
+- **status=404** — the configured `GEMINI_MODEL` is not available for your API key. List the models your key supports and set `GEMINI_MODEL` in `.env` to any available `flash` model (without the `models/` prefix):
+```bash
+  curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_KEY"
+```
+- **status=429** — free-tier quota reached. Wait a minute and retry, or switch to a lighter model such as `gemini-flash-lite-latest`.
+- **status=401 / 400** — the `GEMINI_API_KEY` is missing or invalid in `.env`.
+
+Changes to `.env` require `docker compose up -d --force-recreate backend`; changes to C++ files require `docker compose up -d --build backend`. A plain `restart` does not reload environment variables.
 
 ## Current limitations
 

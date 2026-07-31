@@ -1,4 +1,3 @@
-Names:Roaa Zoabi, Marwa Abd Alrzaq, Ellen Habash
 # AeroMind
 
 ## Project overview
